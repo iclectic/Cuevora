@@ -2,15 +2,17 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getSettings, saveSettings, exportBackup, importBackup } from '@/lib/storage';
 import { AppSettings, PLAYER_THEMES, PlayerTheme } from '@/types/script';
+import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
-import { ArrowLeft, Download, Upload, Shield, MessageSquare, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Download, Upload, Shield, MessageSquare, LogOut, User } from 'lucide-react';
 import { toast } from 'sonner';
 
 const Settings = () => {
   const navigate = useNavigate();
+  const { user, isGuest, signOut } = useAuth();
   const [settings, setSettings] = useState<AppSettings>(getSettings());
 
   const update = (partial: Partial<AppSettings>) => {
@@ -172,13 +174,56 @@ const Settings = () => {
               <div>
                 <h4 className="text-sm font-medium text-foreground mb-1">Privacy Promise</h4>
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  All your scripts are stored locally on your device. OpenPrompt does not collect, 
-                  upload, or share your content. No account is required. Analytics, if enabled, 
+                  All your scripts are stored locally on your device. OpenPrompt does not collect,
+                  upload, or share your content. No account is required. Analytics, if enabled,
                   only collect anonymous usage patterns — never your script content.
                 </p>
               </div>
             </div>
           </div>
+        </Section>
+
+        {/* Account */}
+        <Section title="Account">
+          <div className="rounded-xl bg-card p-4 border border-border/50">
+            <div className="flex items-center gap-3">
+              {user?.photoURL ? (
+                <img src={user.photoURL} alt="" className="h-10 w-10 rounded-full" />
+              ) : (
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+                  <User className="h-5 w-5 text-primary" />
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-foreground truncate">
+                  {user?.displayName || (isGuest ? 'Guest User' : 'Not signed in')}
+                </p>
+                <p className="text-xs text-muted-foreground truncate">
+                  {user?.email || (isGuest ? 'Data stored locally only' : '')}
+                </p>
+              </div>
+            </div>
+          </div>
+          {user ? (
+            <Button
+              variant="outline"
+              className="w-full touch-target justify-start text-destructive"
+              onClick={async () => {
+                await signOut();
+                navigate('/login', { replace: true });
+              }}
+            >
+              <LogOut className="h-4 w-4 mr-2" /> Sign Out
+            </Button>
+          ) : isGuest ? (
+            <Button
+              variant="outline"
+              className="w-full touch-target justify-start"
+              onClick={() => navigate('/login', { replace: true })}
+            >
+              <User className="h-4 w-4 mr-2" /> Sign In to Sync
+            </Button>
+          ) : null}
         </Section>
 
         {/* Support */}

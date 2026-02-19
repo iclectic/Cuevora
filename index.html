@@ -2,25 +2,85 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!-- TODO: Set the document title to the name of your application -->
-    <title>Lovable App</title>
-    <meta name="description" content="Lovable Generated Project" />
-    <meta name="author" content="Lovable" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 
-    <!-- TODO: Update og:title to match your application name -->
-    <meta property="og:title" content="Lovable App" />
-    <meta property="og:description" content="Lovable Generated Project" />
+    <title>OpenPrompt — Free Teleprompter</title>
+    <meta name="description" content="Teleprompter features, actually free. Mirror mode, camera preview, adjustable speed, themes, and more." />
+    <meta name="author" content="OpenPrompt" />
+
+    <!-- Theme & status bar -->
+    <meta name="theme-color" content="#0f1117" />
+    <meta name="color-scheme" content="dark light" />
+
+    <!-- PWA manifest -->
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- Apple mobile web app -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="OpenPrompt" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.svg" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/icons/icon-192.svg" />
+    <link rel="icon" href="/favicon.ico" />
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="OpenPrompt — Free Teleprompter" />
+    <meta property="og:description" content="Teleprompter features, actually free. Mirror mode, camera preview, adjustable speed, themes, and more." />
     <meta property="og:type" content="website" />
-    <meta property="og:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+    <meta property="og:image" content="/icons/icon-512.svg" />
 
+    <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:site" content="@Lovable" />
-    <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+    <meta name="twitter:title" content="OpenPrompt — Free Teleprompter" />
+    <meta name="twitter:image" content="/icons/icon-512.svg" />
+
+    <!-- Prevent tap highlight on mobile -->
+    <style>
+      * { -webkit-tap-highlight-color: transparent; }
+      html, body { overscroll-behavior: none; }
+      /* Native splash: shown before React mounts, hidden by React */
+      #native-splash {
+        position: fixed; inset: 0; z-index: 99999;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        background: #0f1117;
+        transition: opacity 0.3s ease;
+      }
+      #native-splash.hidden { opacity: 0; pointer-events: none; }
+      #native-splash svg { width: 72px; height: 72px; margin-bottom: 20px; }
+      #native-splash h1 { color: #f0f0f0; font-size: 28px; font-weight: 700; letter-spacing: -0.5px; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif; }
+      #native-splash p { color: #10b981; font-size: 13px; font-weight: 500; margin-top: 6px; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif; }
+    </style>
   </head>
 
   <body>
+    <!-- Native splash shown instantly before JS loads -->
+    <div id="native-splash">
+      <svg viewBox="0 0 192 192" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="192" height="192" rx="40" fill="#0f1117"/>
+        <rect x="4" y="4" width="184" height="184" rx="36" fill="#0f1117" stroke="#10b981" stroke-width="2" stroke-opacity="0.3"/>
+        <path d="M72 56 L136 96 L72 136Z" fill="#10b981"/>
+        <rect x="56" y="148" width="80" height="3" rx="1.5" fill="#10b981" opacity="0.4"/>
+        <rect x="64" y="156" width="64" height="3" rx="1.5" fill="#10b981" opacity="0.25"/>
+        <rect x="72" y="164" width="48" height="3" rx="1.5" fill="#10b981" opacity="0.15"/>
+        <rect x="56" y="28" width="80" height="3" rx="1.5" fill="#10b981" opacity="0.15"/>
+        <rect x="64" y="36" width="64" height="3" rx="1.5" fill="#10b981" opacity="0.25"/>
+        <rect x="72" y="44" width="48" height="3" rx="1.5" fill="#10b981" opacity="0.4"/>
+      </svg>
+      <h1>OpenPrompt</h1>
+      <p>Teleprompter features, actually free.</p>
+    </div>
+
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      // Register service worker for PWA
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').catch(() => {});
+        });
+      }
+    </script>
   </body>
 </html>

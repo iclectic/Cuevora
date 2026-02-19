@@ -1,14 +1,24 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { getScript, getSettings } from '@/lib/storage';
+import { getScript, getSettings, getWordCount } from '@/lib/storage';
 import { PLAYER_THEMES, PlayerTheme } from '@/types/script';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import {
   ArrowLeft, Play, Pause, SkipBack, SkipForward, FlipHorizontal,
-  Type, AlignJustify, Palette, Timer, Video, ChevronUp, ChevronDown, Sun,
+  Type, AlignJustify, Palette, Timer, Video, Mic, MicOff,
+  RotateCcw, Gauge, Hand,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useVoiceControl, VoiceCommand } from '@/hooks/use-voice-control';
+import { useGestureControls } from '@/hooks/use-gesture-controls';
+
+const SPEED_PRESETS = [
+  { label: 'Slow', value: 2 },
+  { label: 'Medium', value: 4 },
+  { label: 'Fast', value: 7 },
+  { label: 'Turbo', value: 10 },
+];
 
 const Player = () => {
   const { id } = useParams<{ id: string }>();
@@ -26,23 +36,63 @@ const Player = () => {
   const [countdown, setCountdown] = useState<number | null>(null);
   const [focusLine, setFocusLine] = useState(settings.focusLineEnabled);
   const [showPanel, setShowPanel] = useState<'none' | 'speed' | 'font' | 'theme'>('none');
+  const [scrollProgress, setScrollProgress] = useState(0);
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [gesturesEnabled, setGesturesEnabled] = useState(true);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const animRef = useRef<number>();
   const lastTimeRef = useRef<number>(0);
+  const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
 
   const currentTheme = PLAYER_THEMES[theme];
 
+  // Word count & estimated read time
+  const wordCount = useMemo(() => script ? getWordCount(script.content) : 0, [script]);
+  const totalReadTimeSec = useMemo(() => Math.ceil((wordCount / settings.wpm) * 60), [wordCount, settings.wpm]);
+
+  const timeRemaining = useMemo(() => {
+    const remaining = Math.max(0, Math.ceil(totalReadTimeSec * (1 - scrollProgress)));
+    const mins = Math.floor(remaining / 60);
+    const secs = remaining % 60;
+    return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+  }, [totalReadTimeSec, scrollProgress]);
+
+  // Elapsed timer
+  useEffect(() => {
+    if (!playing) return;
+    const interval = setInterval(() => setElapsedSeconds(s => s + 1), 1000);
+    return () => clearInterval(interval);
+  }, [playing]);
+
+  const formatElapsed = (s: number) => {
+    const mins = Math.floor(s / 60);
+    const secs = s % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
   // Keep screen awake
   useEffect(() => {
-    let wakeLock: any = null;
+    let wakeLock: WakeLockSentinel | null = null;
     if (settings.keepScreenAwake && 'wakeLock' in navigator) {
-      (navigator as any).wakeLock.request('screen').then((lock: any) => {
+      navigator.wakeLock.request('screen').then((lock) => {
         wakeLock = lock;
-      }).catch(() => {});
+      }).catch(() => { /* noop */ });
     }
     return () => { wakeLock?.release(); };
   }, [settings.keepScreenAwake]);
+
+  // Auto-hide controls after 4s of playback
+  useEffect(() => {
+    if (playing && showControls) {
+      controlsTimeoutRef.current = setTimeout(() => setShowControls(false), 4000);
+    }
+    return () => {
+      if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+    };
+  }, [playing, showControls]);
 
   // Smooth scroll animation
   const scrollStep = useCallback((timestamp: number) => {
@@ -50,13 +100,18 @@ const Player = () => {
     if (lastTimeRef.current === 0) lastTimeRef.current = timestamp;
     const delta = timestamp - lastTimeRef.current;
     lastTimeRef.current = timestamp;
-    // speed 1-10: pixels per second = speed * 20
     const pxPerSecond = speed * 20;
     const scrollAmount = (pxPerSecond * delta) / 1000;
     scrollRef.current.scrollTop += scrollAmount;
 
-    // Check if reached end
+    // Update progress
     const el = scrollRef.current;
+    const maxScroll = el.scrollHeight - el.clientHeight;
+    if (maxScroll > 0) {
+      setScrollProgress(el.scrollTop / maxScroll);
+    }
+
+    // Check if reached end
     if (el.scrollTop + el.clientHeight >= el.scrollHeight - 10) {
       setPlaying(false);
       return;
@@ -75,6 +130,16 @@ const Player = () => {
     return () => { if (animRef.current) cancelAnimationFrame(animRef.current); };
   }, [playing, scrollStep]);
 
+  // Track scroll progress on manual scroll too
+  const handleScroll = useCallback(() => {
+    if (!scrollRef.current) return;
+    const el = scrollRef.current;
+    const maxScroll = el.scrollHeight - el.clientHeight;
+    if (maxScroll > 0) {
+      setScrollProgress(el.scrollTop / maxScroll);
+    }
+  }, []);
+
   // Countdown
   const startCountdown = (secs: number) => {
     setCountdown(secs);
@@ -91,25 +156,116 @@ const Player = () => {
     return () => clearTimeout(timer);
   }, [countdown]);
 
-  const rewind = () => {
+  const rewind = useCallback(() => {
     if (!scrollRef.current) return;
     const pxPerSecond = speed * 20;
     scrollRef.current.scrollTop = Math.max(0, scrollRef.current.scrollTop - pxPerSecond * 5);
-  };
+  }, [speed]);
 
-  const forward = () => {
+  const forward = useCallback(() => {
     if (!scrollRef.current) return;
     const pxPerSecond = speed * 20;
     scrollRef.current.scrollTop += pxPerSecond * 5;
-  };
+  }, [speed]);
 
-  const togglePlay = () => {
+  const resetScroll = useCallback(() => {
+    if (!scrollRef.current) return;
+    scrollRef.current.scrollTop = 0;
+    setPlaying(false);
+    setElapsedSeconds(0);
+    setScrollProgress(0);
+  }, []);
+
+  const togglePlay = useCallback(() => {
     if (!playing && scrollRef.current?.scrollTop === 0) {
       startCountdown(settings.countdownDuration);
     } else {
-      setPlaying(!playing);
+      setPlaying(p => !p);
     }
-  };
+  }, [playing, settings.countdownDuration]);
+
+  // Voice control
+  const handleVoiceCommand = useCallback((cmd: VoiceCommand) => {
+    switch (cmd) {
+      case 'play': setPlaying(true); break;
+      case 'pause': setPlaying(false); break;
+      case 'stop': setPlaying(false); break;
+      case 'faster': setSpeed(s => Math.min(10, s + 1)); break;
+      case 'slower': setSpeed(s => Math.max(1, s - 1)); break;
+      case 'reset': resetScroll(); break;
+    }
+  }, [resetScroll]);
+
+  const voice = useVoiceControl({
+    onCommand: handleVoiceCommand,
+    enabled: voiceEnabled,
+  });
+
+  const toggleVoice = useCallback(() => {
+    if (voiceEnabled) {
+      voice.stop();
+      setVoiceEnabled(false);
+    } else {
+      setVoiceEnabled(true);
+      setTimeout(() => voice.start(), 100);
+    }
+  }, [voiceEnabled, voice]);
+
+  // Gesture controls
+  useGestureControls({
+    elementRef: containerRef,
+    enabled: gesturesEnabled,
+    onTapCenter: () => setShowControls(s => !s),
+    onTapLeft: rewind,
+    onTapRight: forward,
+    onDoubleTap: togglePlay,
+    onSwipeUp: () => setSpeed(s => Math.min(10, s + 0.5)),
+    onSwipeDown: () => setSpeed(s => Math.max(1, s - 0.5)),
+    onPinchOut: () => setFontSize(s => Math.min(72, s + 2)),
+    onPinchIn: () => setFontSize(s => Math.max(16, s - 2)),
+  });
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      switch (e.key) {
+        case ' ':
+          e.preventDefault();
+          togglePlay();
+          break;
+        case 'ArrowUp':
+          e.preventDefault();
+          setSpeed(s => Math.min(10, s + 0.5));
+          break;
+        case 'ArrowDown':
+          e.preventDefault();
+          setSpeed(s => Math.max(1, s - 0.5));
+          break;
+        case 'ArrowLeft':
+          e.preventDefault();
+          rewind();
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          forward();
+          break;
+        case 'm':
+          setMirrored(m => !m);
+          break;
+        case 'f':
+          setFocusLine(f => !f);
+          break;
+        case 'r':
+          resetScroll();
+          break;
+        case 'Escape':
+          navigate(-1);
+          break;
+      }
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [togglePlay, rewind, forward, resetScroll, navigate]);
 
   if (!script) {
     return (
@@ -124,12 +280,21 @@ const Player = () => {
 
   const lines = script.content.split('\n');
 
-
   return (
     <div
-      className="relative flex min-h-screen flex-col overflow-hidden"
+      ref={containerRef}
+      className="relative flex min-h-screen flex-col overflow-hidden select-none"
       style={{ backgroundColor: currentTheme.bg, color: currentTheme.fg }}
     >
+      {/* Scroll progress bar */}
+      <div
+        className="absolute top-0 left-0 z-50 h-1 transition-all duration-150"
+        style={{
+          width: `${scrollProgress * 100}%`,
+          backgroundColor: '#10b981',
+        }}
+      />
+
       {/* Countdown overlay */}
       <AnimatePresence>
         {countdown !== null && (
@@ -161,7 +326,7 @@ const Player = () => {
             initial={{ y: -60, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: -60, opacity: 0 }}
-            className="absolute top-0 left-0 right-0 z-40 flex items-center gap-2 px-4 py-3"
+            className="absolute top-1 left-0 right-0 z-40 flex items-center gap-2 px-4 py-3"
             style={{ backgroundColor: `${currentTheme.bg}ee` }}
           >
             <Button
@@ -173,9 +338,16 @@ const Player = () => {
             >
               <ArrowLeft className="h-5 w-5" />
             </Button>
-            <span className="flex-1 text-sm font-medium truncate" style={{ color: currentTheme.fg }}>
-              {script.title}
-            </span>
+            <div className="flex-1 min-w-0">
+              <span className="block text-sm font-medium truncate" style={{ color: currentTheme.fg }}>
+                {script.title}
+              </span>
+              <div className="flex items-center gap-3 text-[10px]" style={{ color: `${currentTheme.fg}66` }}>
+                <span>{formatElapsed(elapsedSeconds)}</span>
+                <span>{Math.round(scrollProgress * 100)}%</span>
+                <span>{timeRemaining} left</span>
+              </div>
+            </div>
             <Button
               variant="ghost"
               size="icon"
@@ -198,14 +370,32 @@ const Player = () => {
         )}
       </AnimatePresence>
 
+      {/* Voice control indicator */}
+      <AnimatePresence>
+        {voice.listening && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="absolute top-20 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-3 py-1.5 rounded-full"
+            style={{ backgroundColor: `${currentTheme.bg}dd`, border: '1px solid #10b98144' }}
+          >
+            <div className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+            <span className="text-[10px] font-medium" style={{ color: '#10b981' }}>
+              Listening{voice.lastTranscript ? `: "${voice.lastTranscript}"` : '...'}
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Text area */}
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto px-6 pt-16 pb-40 cursor-pointer"
+        className="flex-1 overflow-y-auto px-6 pt-16 pb-40"
         style={{
           transform: mirrored ? 'scaleX(-1)' : 'none',
         }}
-        onClick={() => setShowControls(!showControls)}
+        onScroll={handleScroll}
       >
         {/* Focus line indicator */}
         {focusLine && (
@@ -261,19 +451,37 @@ const Player = () => {
                   className="overflow-hidden px-6 pt-3"
                 >
                   {showPanel === 'speed' && (
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-xs" style={{ color: `${currentTheme.fg}88` }}>
-                        <span>Scroll Speed</span>
-                        <span>{speed}x</span>
+                    <div className="space-y-3">
+                      {/* Speed presets */}
+                      <div className="flex gap-2">
+                        {SPEED_PRESETS.map(preset => (
+                          <button
+                            key={preset.label}
+                            className="flex-1 rounded-lg py-2 text-xs font-medium transition-colors"
+                            style={{
+                              backgroundColor: speed === preset.value ? '#10b981' : `${currentTheme.fg}11`,
+                              color: speed === preset.value ? '#fff' : `${currentTheme.fg}88`,
+                            }}
+                            onClick={() => setSpeed(preset.value)}
+                          >
+                            {preset.label}
+                          </button>
+                        ))}
                       </div>
-                      <Slider
-                        value={[speed]}
-                        onValueChange={([v]) => setSpeed(v)}
-                        min={1}
-                        max={10}
-                        step={0.5}
-                        className="touch-target"
-                      />
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-xs" style={{ color: `${currentTheme.fg}88` }}>
+                          <span>Custom Speed</span>
+                          <span>{speed}x</span>
+                        </div>
+                        <Slider
+                          value={[speed]}
+                          onValueChange={([v]) => setSpeed(v)}
+                          min={1}
+                          max={10}
+                          step={0.5}
+                          className="touch-target"
+                        />
+                      </div>
                     </div>
                   )}
                   {showPanel === 'font' && (
@@ -333,7 +541,7 @@ const Player = () => {
             {/* Panel toggles */}
             <div className="flex justify-center gap-1 px-6 pt-2">
               {[
-                { key: 'speed' as const, icon: Sun, label: 'Speed' },
+                { key: 'speed' as const, icon: Gauge, label: 'Speed' },
                 { key: 'font' as const, icon: Type, label: 'Font' },
                 { key: 'theme' as const, icon: Palette, label: 'Theme' },
               ].map(({ key, icon: Icon, label }) => (
@@ -352,22 +560,34 @@ const Player = () => {
             </div>
 
             {/* Transport controls */}
-            <div className="flex items-center justify-center gap-3 px-6 py-4">
+            <div className="flex items-center justify-center gap-2 px-6 py-3">
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-12 w-12 rounded-full"
+                className="h-10 w-10 rounded-full"
                 style={{ color: currentTheme.fg }}
-                onClick={() => startCountdown(settings.countdownDuration)}
+                onClick={resetScroll}
+                title="Reset to start"
               >
-                <Timer className="h-5 w-5" />
+                <RotateCcw className="h-4 w-4" />
               </Button>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-12 w-12 rounded-full"
+                className="h-10 w-10 rounded-full"
+                style={{ color: currentTheme.fg }}
+                onClick={() => startCountdown(settings.countdownDuration)}
+                title="Countdown"
+              >
+                <Timer className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-11 w-11 rounded-full"
                 style={{ color: currentTheme.fg }}
                 onClick={rewind}
+                title="Rewind"
               >
                 <SkipBack className="h-5 w-5" />
               </Button>
@@ -381,21 +601,53 @@ const Player = () => {
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-12 w-12 rounded-full"
+                className="h-11 w-11 rounded-full"
                 style={{ color: currentTheme.fg }}
                 onClick={forward}
+                title="Forward"
               >
                 <SkipForward className="h-5 w-5" />
+              </Button>
+              {voice.supported && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-10 w-10 rounded-full"
+                  style={{ color: voice.listening ? '#10b981' : currentTheme.fg }}
+                  onClick={toggleVoice}
+                  title="Voice control"
+                >
+                  {voice.listening ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10 rounded-full"
+                style={{ color: focusLine ? '#10b981' : currentTheme.fg }}
+                onClick={() => setFocusLine(!focusLine)}
+                title="Focus line"
+              >
+                <AlignJustify className="h-4 w-4" />
               </Button>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-12 w-12 rounded-full"
-                style={{ color: focusLine ? '#10b981' : currentTheme.fg }}
-                onClick={() => setFocusLine(!focusLine)}
+                className="h-10 w-10 rounded-full"
+                style={{ color: gesturesEnabled ? '#10b981' : currentTheme.fg }}
+                onClick={() => setGesturesEnabled(!gesturesEnabled)}
+                title="Gesture controls"
               >
-                <AlignJustify className="h-5 w-5" />
+                <Hand className="h-4 w-4" />
               </Button>
+            </div>
+
+            {/* Status bar */}
+            <div className="flex items-center justify-center gap-4 px-6 pb-3 text-[10px]" style={{ color: `${currentTheme.fg}55` }}>
+              <span>{wordCount} words</span>
+              <span>{speed}x speed</span>
+              <span>{fontSize}px</span>
+              <span>{Math.round(scrollProgress * 100)}%</span>
             </div>
           </motion.div>
         )}

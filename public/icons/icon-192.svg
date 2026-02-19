@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" fill="none">
+  <rect width="192" height="192" rx="40" fill="#0f1117"/>
+  <rect x="4" y="4" width="184" height="184" rx="36" fill="#0f1117" stroke="#10b981" stroke-width="2" stroke-opacity="0.3"/>
+  <!-- Play triangle -->
+  <path d="M72 56 L136 96 L72 136Z" fill="#10b981"/>
+  <!-- Scroll lines -->
+  <rect x="56" y="148" width="80" height="3" rx="1.5" fill="#10b981" opacity="0.4"/>
+  <rect x="64" y="156" width="64" height="3" rx="1.5" fill="#10b981" opacity="0.25"/>
+  <rect x="72" y="164" width="48" height="3" rx="1.5" fill="#10b981" opacity="0.15"/>
+  <!-- Top accent -->
+  <rect x="56" y="28" width="80" height="3" rx="1.5" fill="#10b981" opacity="0.15"/>
+  <rect x="64" y="36" width="64" height="3" rx="1.5" fill="#10b981" opacity="0.25"/>
+  <rect x="72" y="44" width="48" height="3" rx="1.5" fill="#10b981" opacity="0.4"/>
+</svg>
