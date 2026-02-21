@@ -1,4 +1,4 @@
-# OpenPrompt — Free Teleprompter
+# OpenPrompt - Free Teleprompter
 
 A full-featured, free teleprompter app for iOS, Android, and the web. Built with React, Vite, TailwindCSS, and Capacitor.
 
