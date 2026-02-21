@@ -60,8 +60,8 @@ const Settings = () => {
   return (
     <div className="flex min-h-screen flex-col bg-background safe-area-padding">
       {/* Header */}
-      <div className="flex items-center gap-2 px-4 pt-4 pb-2">
-        <Button variant="ghost" size="icon" className="touch-target" onClick={() => navigate('/home')}>
+      <div className="flex items-center gap-2 px-4 pb-2" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top, 0px))' }}>
+        <Button variant="ghost" size="icon" className="touch-target text-white" onClick={() => navigate('/home')}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <h1 className="text-lg font-bold text-foreground">Settings</h1>

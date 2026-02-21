@@ -125,13 +125,13 @@ const Editor = () => {
   return (
     <div className="flex min-h-screen flex-col bg-background safe-area-padding">
       {/* Header */}
-      <div className="flex items-center gap-2 px-4 pt-4 pb-2">
-        <Button variant="ghost" size="icon" className="touch-target" onClick={() => navigate('/home')}>
+      <div className="flex items-center gap-2 px-4 pb-2" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top, 0px))' }}>
+        <Button variant="ghost" size="icon" className="touch-target text-white" onClick={() => navigate('/home')}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div className="flex-1" />
         <div className="flex items-center gap-1 text-xs text-muted-foreground">
-          {saved && <Check className="h-3 w-3 text-primary" />}
+          {saved && <Check className="h-3 w-3 text-emerald-400" />}
           {saved ? 'Saved' : 'Autosave on'}
         </div>
       </div>
@@ -185,28 +185,28 @@ const Editor = () => {
       </div>
 
       {/* Actions */}
-      <div className="flex items-center gap-2 px-5 py-4 border-t border-border">
+      <div className="flex items-center gap-2 px-5 py-4 border-t border-white/10" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}>
         {scriptId && (
           <Button
-            className="flex-1 touch-target"
+            className="flex-1 touch-target bg-emerald-600 hover:bg-emerald-700 text-white"
             onClick={() => navigate(`/player/${scriptId}`)}
           >
             <Play className="h-4 w-4 mr-2" /> Prompt
           </Button>
         )}
-        <Button variant="outline" size="icon" className="touch-target" onClick={handleImportTxt}>
+        <Button variant="outline" size="icon" className="touch-target border-white/20 text-white hover:bg-white/10" onClick={handleImportTxt}>
           <Upload className="h-4 w-4" />
         </Button>
-        <Button variant="outline" size="icon" className="touch-target" onClick={handleExportTxt}>
+        <Button variant="outline" size="icon" className="touch-target border-white/20 text-white hover:bg-white/10" onClick={handleExportTxt}>
           <Download className="h-4 w-4" />
         </Button>
-        <Button variant="outline" size="icon" className="touch-target" onClick={handleCopy}>
+        <Button variant="outline" size="icon" className="touch-target border-white/20 text-white hover:bg-white/10" onClick={handleCopy}>
           <Copy className="h-4 w-4" />
         </Button>
 
         <Dialog open={showHistory} onOpenChange={setShowHistory}>
           <DialogTrigger asChild>
-            <Button variant="outline" size="icon" className="touch-target">
+            <Button variant="outline" size="icon" className="touch-target border-white/20 text-white hover:bg-white/10">
               <History className="h-4 w-4" />
             </Button>
           </DialogTrigger>

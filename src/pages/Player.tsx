@@ -326,8 +326,8 @@ const Player = () => {
             initial={{ y: -60, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: -60, opacity: 0 }}
-            className="absolute top-1 left-0 right-0 z-40 flex items-center gap-2 px-4 py-3"
-            style={{ backgroundColor: `${currentTheme.bg}ee` }}
+            className="absolute top-0 left-0 right-0 z-40 flex items-center gap-2 px-4 py-3"
+            style={{ backgroundColor: `${currentTheme.bg}ee`, paddingTop: 'calc(2rem + env(safe-area-inset-top, 0px))' }}
           >
             <Button
               variant="ghost"
