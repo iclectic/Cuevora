@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
+import { resolveLegalUrl } from '@/lib/utils';
 import { ArrowLeft, Download, Upload, Shield, MessageSquare, LogOut, User } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -14,8 +15,8 @@ const Settings = () => {
   const navigate = useNavigate();
   const { user, isGuest, signOut, firebaseAvailable } = useAuth();
   const [settings, setSettings] = useState<AppSettings>(getSettings());
-  const privacyUrl = import.meta.env.VITE_PRIVACY_URL || '';
-  const termsUrl = import.meta.env.VITE_TERMS_URL || '';
+  const privacyUrl = resolveLegalUrl(import.meta.env.VITE_PRIVACY_URL, 'privacy.html');
+  const termsUrl = resolveLegalUrl(import.meta.env.VITE_TERMS_URL, 'terms.html');
 
   const update = (partial: Partial<AppSettings>) => {
     const updated = saveSettings(partial);

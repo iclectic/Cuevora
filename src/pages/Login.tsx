@@ -4,14 +4,15 @@ import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 import { Loader2 } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
+import { resolveLegalUrl } from '@/lib/utils';
 
 const Login = () => {
   const navigate = useNavigate();
   const { signInWithGoogle, signInWithApple, skipAuth, loading, error, user, isGuest, firebaseAvailable } = useAuth();
   const isAndroidNative = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android';
   const showApple = !isAndroidNative;
-  const privacyUrl = import.meta.env.VITE_PRIVACY_URL || '';
-  const termsUrl = import.meta.env.VITE_TERMS_URL || '';
+  const privacyUrl = resolveLegalUrl(import.meta.env.VITE_PRIVACY_URL, 'privacy.html');
+  const termsUrl = resolveLegalUrl(import.meta.env.VITE_TERMS_URL, 'terms.html');
   const authMessage = firebaseAvailable
     ? 'Sign in to sync your scripts across devices, or continue as a guest.'
     : 'Account sync is currently unavailable. Continue as a guest.';

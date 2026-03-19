@@ -98,11 +98,15 @@ VITE_FIREBASE_APP_ID=your-app-id
 
 ## Legal Links (Recommended for Store Release)
 
-Terms of Service and Privacy Policy URLs to enable in-app links:
+Static legal pages already exist at `public/terms.html` and `public/privacy.html`.
+If you deploy this site, use the fully qualified URLs for those pages to enable in-app links and to populate the Play Console listing:
 ```
-VITE_TERMS_URL=https://example.com/terms
-VITE_PRIVACY_URL=https://example.com/privacy
+VITE_TERMS_URL=https://your-domain.com/terms.html
+VITE_PRIVACY_URL=https://your-domain.com/privacy.html
 ```
+
+For GitHub Pages on this repository, the privacy-policy URL will be:
+`https://iclectic.github.io/openprompt-free-teleprompter/privacy.html`
 
 ---
 
