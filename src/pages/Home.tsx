@@ -203,7 +203,7 @@ const Home = () => {
       <div className="fixed right-6" style={{ bottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}>
         <Button
           size="lg"
-          className="h-14 w-14 rounded-full shadow-lg touch-target bg-emerald-600 hover:bg-emerald-700 text-white"
+          className="h-14 w-14 rounded-full shadow-lg touch-target bg-violet-600 hover:bg-violet-700 text-white"
           onClick={() => navigate('/editor/new')}
         >
           <Plus className="h-6 w-6" />

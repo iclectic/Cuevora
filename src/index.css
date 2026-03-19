@@ -5,94 +5,94 @@
 @layer base {
   :root {
     --background: 0 0% 97%;
-    --foreground: 220 20% 10%;
+    --foreground: 243 30% 12%;
 
     --card: 0 0% 100%;
-    --card-foreground: 220 20% 10%;
+    --card-foreground: 243 30% 12%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 220 20% 10%;
+    --popover-foreground: 243 30% 12%;
 
-    --primary: 160 84% 39%;
+    --primary: 263 83% 58%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 220 14% 92%;
-    --secondary-foreground: 220 20% 10%;
+    --secondary: 243 20% 93%;
+    --secondary-foreground: 243 30% 12%;
 
-    --muted: 220 14% 94%;
-    --muted-foreground: 220 10% 46%;
+    --muted: 243 15% 94%;
+    --muted-foreground: 243 10% 46%;
 
-    --accent: 160 84% 39%;
+    --accent: 38 93% 50%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 13% 89%;
-    --input: 220 13% 89%;
-    --ring: 160 84% 39%;
+    --border: 243 13% 89%;
+    --input: 243 13% 89%;
+    --ring: 263 83% 58%;
 
     --radius: 0.75rem;
 
     --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 220 10% 30%;
-    --sidebar-primary: 160 84% 39%;
+    --sidebar-foreground: 243 10% 30%;
+    --sidebar-primary: 263 83% 58%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 14% 94%;
-    --sidebar-accent-foreground: 220 20% 10%;
-    --sidebar-border: 220 13% 89%;
-    --sidebar-ring: 160 84% 39%;
+    --sidebar-accent: 243 15% 94%;
+    --sidebar-accent-foreground: 243 30% 12%;
+    --sidebar-border: 243 13% 89%;
+    --sidebar-ring: 263 83% 58%;
 
     /* Custom tokens */
-    --surface: 220 14% 96%;
-    --surface-foreground: 220 20% 10%;
-    --success: 142 76% 36%;
-    --warning: 38 92% 50%;
-    --player-bg: 220 20% 8%;
+    --surface: 243 14% 96%;
+    --surface-foreground: 243 30% 12%;
+    --success: 263 83% 58%;
+    --warning: 38 93% 50%;
+    --player-bg: 243 47% 10%;
     --player-fg: 0 0% 95%;
   }
 
   .dark {
-    --background: 220 20% 6%;
-    --foreground: 210 20% 95%;
+    --background: 244 47% 8%;
+    --foreground: 240 20% 95%;
 
-    --card: 220 18% 10%;
-    --card-foreground: 210 20% 95%;
+    --card: 244 40% 12%;
+    --card-foreground: 240 20% 95%;
 
-    --popover: 220 18% 10%;
-    --popover-foreground: 210 20% 95%;
+    --popover: 244 40% 12%;
+    --popover-foreground: 240 20% 95%;
 
-    --primary: 160 84% 39%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 255 93% 76%;
+    --primary-foreground: 244 47% 8%;
 
-    --secondary: 220 15% 16%;
-    --secondary-foreground: 210 20% 95%;
+    --secondary: 244 30% 18%;
+    --secondary-foreground: 240 20% 95%;
 
-    --muted: 220 15% 14%;
-    --muted-foreground: 220 10% 55%;
+    --muted: 244 25% 16%;
+    --muted-foreground: 240 10% 55%;
 
-    --accent: 160 84% 39%;
+    --accent: 38 93% 50%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 62% 30%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 15% 18%;
-    --input: 220 15% 18%;
-    --ring: 160 84% 39%;
+    --border: 244 25% 20%;
+    --input: 244 25% 20%;
+    --ring: 255 93% 76%;
 
-    --sidebar-background: 220 20% 8%;
-    --sidebar-foreground: 210 15% 80%;
-    --sidebar-primary: 160 84% 39%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 15% 14%;
-    --sidebar-accent-foreground: 210 20% 95%;
-    --sidebar-border: 220 15% 18%;
-    --sidebar-ring: 160 84% 39%;
+    --sidebar-background: 244 47% 10%;
+    --sidebar-foreground: 240 15% 80%;
+    --sidebar-primary: 255 93% 76%;
+    --sidebar-primary-foreground: 244 47% 8%;
+    --sidebar-accent: 244 25% 16%;
+    --sidebar-accent-foreground: 240 20% 95%;
+    --sidebar-border: 244 25% 20%;
+    --sidebar-ring: 255 93% 76%;
 
-    --surface: 220 18% 12%;
-    --surface-foreground: 210 20% 95%;
-    --player-bg: 0 0% 3%;
+    --surface: 244 35% 14%;
+    --surface-foreground: 240 20% 95%;
+    --player-bg: 244 47% 5%;
     --player-fg: 0 0% 97%;
   }
 }
@@ -112,11 +112,11 @@
   .glass {
     @apply bg-card/80 backdrop-blur-xl border border-border/50;
   }
-  
+
   .touch-target {
     @apply min-h-[44px] min-w-[44px];
   }
-  
+
   .safe-area-padding {
     padding-left: max(1rem, env(safe-area-inset-left));
     padding-right: max(1rem, env(safe-area-inset-right));

@@ -1,4 +1,6 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { getSettings } from "@/lib/storage";
+import type { ColorMode } from "@/types/script";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -19,9 +21,34 @@ import ProtectedRoute from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient();
 
+const resolveTheme = (mode: ColorMode): boolean => {
+  if (mode === 'dark') return true;
+  if (mode === 'light') return false;
+  return window.matchMedia('(prefers-color-scheme: dark)').matches;
+};
+
 const App = () => {
   const [splashDone, setSplashDone] = useState(false);
   const handleSplashComplete = useCallback(() => setSplashDone(true), []);
+  const [isDark, setIsDark] = useState(() => resolveTheme(getSettings().colorMode));
+
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const onSystemChange = () => {
+      const mode = getSettings().colorMode;
+      if (mode === 'system') setIsDark(mq.matches);
+    };
+    mq.addEventListener('change', onSystemChange);
+
+    // Listen for settings changes from other components
+    const onStorage = () => setIsDark(resolveTheme(getSettings().colorMode));
+    window.addEventListener('cuevora-settings-changed', onStorage);
+
+    return () => {
+      mq.removeEventListener('change', onSystemChange);
+      window.removeEventListener('cuevora-settings-changed', onStorage);
+    };
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -31,7 +58,7 @@ const App = () => {
           <Sonner />
           {!splashDone && <SplashScreen onComplete={handleSplashComplete} />}
           <BrowserRouter>
-            <div className="dark">
+            <div className={isDark ? 'dark' : ''}>
               <Routes>
                 <Route path="/" element={<Index />} />
                 <Route path="/login" element={<Login />} />

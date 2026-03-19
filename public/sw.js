@@ -1,4 +1,4 @@
-const CACHE_NAME = 'openprompt-v1';
+const CACHE_NAME = 'cuevora-v1';
 const PRECACHE_URLS = [
   '/',
   '/index.html',

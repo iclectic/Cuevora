@@ -291,7 +291,7 @@ const Player = () => {
         className="absolute top-0 left-0 z-50 h-1 transition-all duration-150"
         style={{
           width: `${scrollProgress * 100}%`,
-          backgroundColor: '#10b981',
+          backgroundColor: '#a78bfa',
         }}
       />
 
@@ -352,7 +352,7 @@ const Player = () => {
               variant="ghost"
               size="icon"
               className="touch-target"
-              style={{ color: mirrored ? '#10b981' : currentTheme.fg }}
+              style={{ color: mirrored ? '#a78bfa' : currentTheme.fg }}
               onClick={() => setMirrored(!mirrored)}
             >
               <FlipHorizontal className="h-5 w-5" />
@@ -378,10 +378,10 @@ const Player = () => {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
             className="absolute top-20 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-3 py-1.5 rounded-full"
-            style={{ backgroundColor: `${currentTheme.bg}dd`, border: '1px solid #10b98144' }}
+            style={{ backgroundColor: `${currentTheme.bg}dd`, border: '1px solid #a78bfa44' }}
           >
             <div className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
-            <span className="text-[10px] font-medium" style={{ color: '#10b981' }}>
+            <span className="text-[10px] font-medium" style={{ color: '#a78bfa' }}>
               Listening{voice.lastTranscript ? `: "${voice.lastTranscript}"` : '...'}
             </span>
           </motion.div>
@@ -459,7 +459,7 @@ const Player = () => {
                             key={preset.label}
                             className="flex-1 rounded-lg py-2 text-xs font-medium transition-colors"
                             style={{
-                              backgroundColor: speed === preset.value ? '#10b981' : `${currentTheme.fg}11`,
+                              backgroundColor: speed === preset.value ? '#7c3aed' : `${currentTheme.fg}11`,
                               color: speed === preset.value ? '#fff' : `${currentTheme.fg}88`,
                             }}
                             onClick={() => setSpeed(preset.value)}
@@ -525,7 +525,7 @@ const Player = () => {
                           style={{
                             backgroundColor: PLAYER_THEMES[key].bg,
                             color: PLAYER_THEMES[key].fg,
-                            border: theme === key ? '2px solid #10b981' : '2px solid transparent',
+                            border: theme === key ? '2px solid #a78bfa' : '2px solid transparent',
                           }}
                           onClick={() => setTheme(key)}
                         >
@@ -550,7 +550,7 @@ const Player = () => {
                   variant="ghost"
                   size="sm"
                   className="text-xs gap-1"
-                  style={{ color: showPanel === key ? '#10b981' : `${currentTheme.fg}88` }}
+                  style={{ color: showPanel === key ? '#a78bfa' : `${currentTheme.fg}88` }}
                   onClick={() => setShowPanel(showPanel === key ? 'none' : key)}
                 >
                   <Icon className="h-3.5 w-3.5" />
@@ -613,7 +613,7 @@ const Player = () => {
                   variant="ghost"
                   size="icon"
                   className="h-10 w-10 rounded-full"
-                  style={{ color: voice.listening ? '#10b981' : currentTheme.fg }}
+                  style={{ color: voice.listening ? '#a78bfa' : currentTheme.fg }}
                   onClick={toggleVoice}
                   title="Voice control"
                 >
@@ -624,7 +624,7 @@ const Player = () => {
                 variant="ghost"
                 size="icon"
                 className="h-10 w-10 rounded-full"
-                style={{ color: focusLine ? '#10b981' : currentTheme.fg }}
+                style={{ color: focusLine ? '#a78bfa' : currentTheme.fg }}
                 onClick={() => setFocusLine(!focusLine)}
                 title="Focus line"
               >
@@ -634,7 +634,7 @@ const Player = () => {
                 variant="ghost"
                 size="icon"
                 className="h-10 w-10 rounded-full"
-                style={{ color: gesturesEnabled ? '#10b981' : currentTheme.fg }}
+                style={{ color: gesturesEnabled ? '#a78bfa' : currentTheme.fg }}
                 onClick={() => setGesturesEnabled(!gesturesEnabled)}
                 title="Gesture controls"
               >
