@@ -252,7 +252,7 @@ const Settings = () => {
         {/* Support */}
         <Section title="Support">
           <Button variant="outline" className="w-full touch-target justify-start" asChild>
-            <a href="mailto:feedback@openprompt.app">
+            <a href="mailto:ibimbraide@gmail.com">
               <MessageSquare className="h-4 w-4 mr-2" /> Send Feedback
             </a>
           </Button>
