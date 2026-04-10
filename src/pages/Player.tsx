@@ -7,7 +7,7 @@ import { Slider } from '@/components/ui/slider';
 import {
   ArrowLeft, Play, Pause, SkipBack, SkipForward, FlipHorizontal,
   Type, AlignJustify, Palette, Timer, Video, Mic, MicOff,
-  RotateCcw, Gauge, Hand,
+  RotateCcw, Gauge, Hand, Camera, SwitchCamera,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useVoiceControl, VoiceCommand } from '@/hooks/use-voice-control';
@@ -41,11 +41,18 @@ const Player = () => {
   const [gesturesEnabled, setGesturesEnabled] = useState(true);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
+  // Camera state
+  const [cameraOn, setCameraOn] = useState(false);
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
+  const [cameraError, setCameraError] = useState<string | null>(null);
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const animRef = useRef<number>();
   const lastTimeRef = useRef<number>(0);
   const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   const currentTheme = PLAYER_THEMES[theme];
 
@@ -225,6 +232,60 @@ const Player = () => {
     onPinchIn: () => setFontSize(s => Math.max(16, s - 2)),
   });
 
+  // Camera
+  const startCamera = useCallback(async (facing: 'user' | 'environment') => {
+    try {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(t => t.stop());
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false,
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+      setCameraError(null);
+    } catch {
+      setCameraError('Camera access denied.');
+      setCameraOn(false);
+    }
+  }, []);
+
+  const stopCamera = useCallback(() => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+  }, []);
+
+  const toggleCamera = useCallback(() => {
+    if (cameraOn) {
+      stopCamera();
+      setCameraOn(false);
+    } else {
+      setCameraOn(true);
+      startCamera(facingMode);
+    }
+  }, [cameraOn, facingMode, startCamera, stopCamera]);
+
+  const switchCamera = useCallback(() => {
+    const next = facingMode === 'user' ? 'environment' : 'user';
+    setFacingMode(next);
+    if (cameraOn) startCamera(next);
+  }, [facingMode, cameraOn, startCamera]);
+
+  // Clean up camera on unmount
+  useEffect(() => {
+    return () => {
+      streamRef.current?.getTracks().forEach(t => t.stop());
+    };
+  }, []);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -286,12 +347,35 @@ const Player = () => {
       className="relative flex min-h-screen flex-col overflow-hidden select-none"
       style={{ backgroundColor: currentTheme.bg, color: currentTheme.fg }}
     >
+      {/* Camera preview (behind everything) */}
+      {cameraOn && (
+        <div className="absolute inset-0 z-0 bg-black">
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            className="h-full w-full object-cover"
+            style={{ transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' }}
+          />
+          {cameraError && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/80 p-8">
+              <div className="text-center">
+                <Camera className="h-10 w-10 text-white/50 mx-auto mb-3" />
+                <p className="text-sm text-white/70">{cameraError}</p>
+                <Button className="mt-3" size="sm" onClick={() => startCamera(facingMode)}>Retry</Button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Scroll progress bar */}
       <div
         className="absolute top-0 left-0 z-50 h-1 transition-all duration-150"
         style={{
           width: `${scrollProgress * 100}%`,
-          backgroundColor: '#10b981',
+          backgroundColor: '#a78bfa',
         }}
       />
 
@@ -352,11 +436,31 @@ const Player = () => {
               variant="ghost"
               size="icon"
               className="touch-target"
-              style={{ color: mirrored ? '#10b981' : currentTheme.fg }}
+              style={{ color: mirrored ? '#a78bfa' : currentTheme.fg }}
               onClick={() => setMirrored(!mirrored)}
             >
               <FlipHorizontal className="h-5 w-5" />
             </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="touch-target"
+              style={{ color: cameraOn ? '#a78bfa' : currentTheme.fg }}
+              onClick={toggleCamera}
+            >
+              <Camera className="h-5 w-5" />
+            </Button>
+            {cameraOn && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="touch-target"
+                style={{ color: currentTheme.fg }}
+                onClick={switchCamera}
+              >
+                <SwitchCamera className="h-5 w-5" />
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="icon"
@@ -378,10 +482,10 @@ const Player = () => {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
             className="absolute top-20 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-3 py-1.5 rounded-full"
-            style={{ backgroundColor: `${currentTheme.bg}dd`, border: '1px solid #10b98144' }}
+            style={{ backgroundColor: `${currentTheme.bg}dd`, border: '1px solid #a78bfa44' }}
           >
             <div className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
-            <span className="text-[10px] font-medium" style={{ color: '#10b981' }}>
+            <span className="text-[10px] font-medium" style={{ color: '#a78bfa' }}>
               Listening{voice.lastTranscript ? `: "${voice.lastTranscript}"` : '...'}
             </span>
           </motion.div>
@@ -394,6 +498,9 @@ const Player = () => {
         className="flex-1 overflow-y-auto px-6 pt-16 pb-40"
         style={{
           transform: mirrored ? 'scaleX(-1)' : 'none',
+          backgroundColor: cameraOn ? `${currentTheme.bg}cc` : 'transparent',
+          position: 'relative',
+          zIndex: 1,
         }}
         onScroll={handleScroll}
       >
@@ -459,7 +566,7 @@ const Player = () => {
                             key={preset.label}
                             className="flex-1 rounded-lg py-2 text-xs font-medium transition-colors"
                             style={{
-                              backgroundColor: speed === preset.value ? '#10b981' : `${currentTheme.fg}11`,
+                              backgroundColor: speed === preset.value ? '#7c3aed' : `${currentTheme.fg}11`,
                               color: speed === preset.value ? '#fff' : `${currentTheme.fg}88`,
                             }}
                             onClick={() => setSpeed(preset.value)}
@@ -525,7 +632,7 @@ const Player = () => {
                           style={{
                             backgroundColor: PLAYER_THEMES[key].bg,
                             color: PLAYER_THEMES[key].fg,
-                            border: theme === key ? '2px solid #10b981' : '2px solid transparent',
+                            border: theme === key ? '2px solid #a78bfa' : '2px solid transparent',
                           }}
                           onClick={() => setTheme(key)}
                         >
@@ -550,7 +657,7 @@ const Player = () => {
                   variant="ghost"
                   size="sm"
                   className="text-xs gap-1"
-                  style={{ color: showPanel === key ? '#10b981' : `${currentTheme.fg}88` }}
+                  style={{ color: showPanel === key ? '#a78bfa' : `${currentTheme.fg}88` }}
                   onClick={() => setShowPanel(showPanel === key ? 'none' : key)}
                 >
                   <Icon className="h-3.5 w-3.5" />
@@ -613,7 +720,7 @@ const Player = () => {
                   variant="ghost"
                   size="icon"
                   className="h-10 w-10 rounded-full"
-                  style={{ color: voice.listening ? '#10b981' : currentTheme.fg }}
+                  style={{ color: voice.listening ? '#a78bfa' : currentTheme.fg }}
                   onClick={toggleVoice}
                   title="Voice control"
                 >
@@ -624,7 +731,7 @@ const Player = () => {
                 variant="ghost"
                 size="icon"
                 className="h-10 w-10 rounded-full"
-                style={{ color: focusLine ? '#10b981' : currentTheme.fg }}
+                style={{ color: focusLine ? '#a78bfa' : currentTheme.fg }}
                 onClick={() => setFocusLine(!focusLine)}
                 title="Focus line"
               >
@@ -634,7 +741,7 @@ const Player = () => {
                 variant="ghost"
                 size="icon"
                 className="h-10 w-10 rounded-full"
-                style={{ color: gesturesEnabled ? '#10b981' : currentTheme.fg }}
+                style={{ color: gesturesEnabled ? '#a78bfa' : currentTheme.fg }}
                 onClick={() => setGesturesEnabled(!gesturesEnabled)}
                 title="Gesture controls"
               >

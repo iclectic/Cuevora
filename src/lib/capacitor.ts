@@ -11,7 +11,7 @@ export async function initNativePlugins() {
 
   try {
     await StatusBar.setStyle({ style: Style.Dark });
-    await StatusBar.setBackgroundColor({ color: '#0f1117' });
+    await StatusBar.setBackgroundColor({ color: '#1e1b4b' });
   } catch {
     /* StatusBar not available */
   }

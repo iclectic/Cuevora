@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getSettings, saveSettings, exportBackup, importBackup } from '@/lib/storage';
-import { AppSettings, PLAYER_THEMES, PlayerTheme } from '@/types/script';
+import { AppSettings, PLAYER_THEMES, PlayerTheme, ColorMode } from '@/types/script';
 import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { resolveLegalUrl } from '@/lib/utils';
-import { ArrowLeft, Download, Upload, Shield, MessageSquare, LogOut, User } from 'lucide-react';
+import { ArrowLeft, Download, Upload, Shield, MessageSquare, LogOut, User, Sun, Moon, Monitor } from 'lucide-react';
 import { toast } from 'sonner';
 
 const Settings = () => {
@@ -143,6 +143,24 @@ const Settings = () => {
 
         {/* Display */}
         <Section title="Display">
+          <SettingRow label="Appearance">
+            <div className="flex gap-1.5">
+              {([{ key: 'system', label: 'System', icon: Monitor }, { key: 'light', label: 'Light', icon: Sun }, { key: 'dark', label: 'Dark', icon: Moon }] as const).map(({ key, label, icon: Icon }) => (
+                <button
+                  key={key}
+                  className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                    settings.colorMode === key
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-secondary text-secondary-foreground'
+                  }`}
+                  onClick={() => update({ colorMode: key as ColorMode })}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  {label}
+                </button>
+              ))}
+            </div>
+          </SettingRow>
           <SettingRow label="Keep Screen Awake" inline>
             <Switch checked={settings.keepScreenAwake} onCheckedChange={v => update({ keepScreenAwake: v })} />
           </SettingRow>

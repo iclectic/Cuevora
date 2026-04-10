@@ -356,7 +356,7 @@ const RecordMode = () => {
             <Button
               onClick={downloadRecording}
               disabled={saving}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+              className="bg-violet-600 hover:bg-violet-700 text-white gap-2"
             >
               <Download className="h-4 w-4" />
               {saving ? 'Saving...' : 'Save Video'}
@@ -390,7 +390,7 @@ const RecordMode = () => {
         <Button
           variant="ghost" size="icon"
           className="touch-target"
-          style={{ color: mirrored ? '#10b981' : 'white' }}
+          style={{ color: mirrored ? '#a78bfa' : 'white' }}
           onClick={() => setMirrored(!mirrored)}
         >
           <FlipHorizontal className="h-5 w-5" />
@@ -398,7 +398,7 @@ const RecordMode = () => {
         <Button
           variant="ghost" size="icon"
           className="touch-target"
-          style={{ color: splitView ? '#10b981' : 'white' }}
+          style={{ color: splitView ? '#a78bfa' : 'white' }}
           onClick={() => setSplitView(!splitView)}
         >
           {splitView ? <Layers className="h-5 w-5" /> : <Columns className="h-5 w-5" />}

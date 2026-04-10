@@ -1,8 +1,8 @@
 import { Script, ScriptRevision, AppSettings, DEFAULT_SETTINGS } from '@/types/script';
 
-const SCRIPTS_KEY = 'openprompt_scripts';
-const REVISIONS_KEY = 'openprompt_revisions';
-const SETTINGS_KEY = 'openprompt_settings';
+const SCRIPTS_KEY = 'cuevora_scripts';
+const REVISIONS_KEY = 'cuevora_revisions';
+const SETTINGS_KEY = 'cuevora_settings';
 const MAX_REVISIONS = 10;
 
 function generateId(): string {
@@ -24,7 +24,7 @@ export function getScript(id: string): Script | undefined {
 export function saveScript(script: Partial<Script> & { id?: string }): Script {
   const scripts = getScripts();
   const now = Date.now();
-  
+
   if (script.id) {
     const idx = scripts.findIndex(s => s.id === script.id);
     if (idx !== -1) {
@@ -104,6 +104,7 @@ export function saveSettings(settings: Partial<AppSettings>): AppSettings {
   const current = getSettings();
   const updated = { ...current, ...settings };
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(updated));
+  window.dispatchEvent(new Event('cuevora-settings-changed'));
   return updated;
 }
 

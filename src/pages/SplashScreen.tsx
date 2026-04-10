@@ -22,7 +22,7 @@ const SplashScreen = ({ onComplete, minDuration = 2000 }: SplashScreenProps) => 
     <div
       className="fixed inset-0 z-[9999] flex flex-col items-center justify-center"
       style={{
-        backgroundColor: '#0f1117',
+        backgroundColor: '#1e1b4b',
         opacity: visible ? 1 : 0,
         transition: 'opacity 0.4s ease-out',
         pointerEvents: visible ? 'auto' : 'none',
@@ -32,7 +32,7 @@ const SplashScreen = ({ onComplete, minDuration = 2000 }: SplashScreenProps) => 
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
-          background: 'radial-gradient(circle at 50% 45%, rgba(16,185,129,0.12) 0%, transparent 60%)',
+          background: 'radial-gradient(circle at 50% 45%, rgba(124,58,237,0.2) 0%, transparent 60%)',
         }}
       />
 
@@ -41,22 +41,27 @@ const SplashScreen = ({ onComplete, minDuration = 2000 }: SplashScreenProps) => 
         <svg
           width="88"
           height="88"
-          viewBox="0 0 192 192"
+          viewBox="0 0 512 512"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
         >
-          <rect width="192" height="192" rx="40" fill="#0f1117" />
-          <rect
-            x="4" y="4" width="184" height="184" rx="36"
-            fill="#0f1117" stroke="#10b981" strokeWidth="2" strokeOpacity="0.3"
-          />
-          <path d="M72 56 L136 96 L72 136Z" fill="#10b981" />
-          <rect x="56" y="148" width="80" height="3" rx="1.5" fill="#10b981" opacity="0.4" />
-          <rect x="64" y="156" width="64" height="3" rx="1.5" fill="#10b981" opacity="0.25" />
-          <rect x="72" y="164" width="48" height="3" rx="1.5" fill="#10b981" opacity="0.15" />
-          <rect x="56" y="28" width="80" height="3" rx="1.5" fill="#10b981" opacity="0.15" />
-          <rect x="64" y="36" width="64" height="3" rx="1.5" fill="#10b981" opacity="0.25" />
-          <rect x="72" y="44" width="48" height="3" rx="1.5" fill="#10b981" opacity="0.4" />
+          <defs>
+            <linearGradient id="splashCGrad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#a78bfa" />
+              <stop offset="100%" stopColor="#7c3aed" />
+            </linearGradient>
+            <linearGradient id="splashAccent" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#f59e0b" />
+              <stop offset="100%" stopColor="#d97706" />
+            </linearGradient>
+          </defs>
+          <rect width="512" height="512" rx="108" fill="#1e1b4b" />
+          <path d="M310 130 C200 130, 120 200, 120 256 C120 312, 200 382, 310 382"
+            stroke="url(#splashCGrad)" strokeWidth="48" fill="none" strokeLinecap="round" />
+          <rect x="200" y="220" width="140" height="12" rx="6" fill="url(#splashAccent)" opacity="0.9" />
+          <rect x="200" y="250" width="110" height="12" rx="6" fill="url(#splashAccent)" opacity="0.65" />
+          <rect x="200" y="280" width="80" height="12" rx="6" fill="url(#splashAccent)" opacity="0.4" />
+          <path d="M360 230 L395 256 L360 282 Z" fill="#f59e0b" opacity="0.85" />
         </svg>
       </div>
 
@@ -71,7 +76,7 @@ const SplashScreen = ({ onComplete, minDuration = 2000 }: SplashScreenProps) => 
       {/* Tagline */}
       <p
         className="mt-2 text-sm font-medium"
-        style={{ color: '#10b981' }}
+        style={{ color: '#a78bfa' }}
       >
         Teleprompter features, actually free.
       </p>
@@ -83,7 +88,7 @@ const SplashScreen = ({ onComplete, minDuration = 2000 }: SplashScreenProps) => 
             key={i}
             className="h-1.5 w-1.5 rounded-full"
             style={{
-              backgroundColor: '#10b981',
+              backgroundColor: '#a78bfa',
               animation: `splash-dot 1s ease-in-out ${i * 0.2}s infinite`,
             }}
           />

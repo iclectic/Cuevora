@@ -18,6 +18,8 @@ export interface ScriptRevision {
   timestamp: number;
 }
 
+export type ColorMode = 'system' | 'light' | 'dark';
+
 export interface AppSettings {
   defaultTheme: PlayerTheme;
   defaultSpeed: number;
@@ -30,6 +32,7 @@ export interface AppSettings {
   mirrorMode: boolean;
   countdownDuration: 3 | 5 | 10;
   focusLineEnabled: boolean;
+  colorMode: ColorMode;
 }
 
 export type PlayerTheme = 'dark' | 'light' | 'studio' | 'high-contrast';
@@ -53,4 +56,5 @@ export const DEFAULT_SETTINGS: AppSettings = {
   mirrorMode: false,
   countdownDuration: 3,
   focusLineEnabled: true,
+  colorMode: 'system',
 };
