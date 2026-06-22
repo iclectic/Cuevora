@@ -33,6 +33,10 @@ export interface AppSettings {
   countdownDuration: 3 | 5 | 10;
   focusLineEnabled: boolean;
   colorMode: ColorMode;
+  hapticsEnabled: boolean;
+  gestureControlsEnabled: boolean;
+  voiceControlsEnabled: boolean;
+  recordingQuality: 'standard' | 'high';
 }
 
 export type PlayerTheme = 'dark' | 'light' | 'studio' | 'high-contrast';
@@ -57,4 +61,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   countdownDuration: 3,
   focusLineEnabled: true,
   colorMode: 'system',
+  hapticsEnabled: true,
+  gestureControlsEnabled: true,
+  voiceControlsEnabled: false,
+  recordingQuality: 'high',
 };

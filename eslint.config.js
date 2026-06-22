@@ -5,7 +5,16 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist"] },
+  {
+    ignores: [
+      "dist",
+      "android/**/build/**",
+      "android/.gradle/**",
+      "android/app/src/main/assets/**",
+      "android/app/src/main/res/xml/config.xml",
+      "android/capacitor-cordova-android-plugins/**",
+    ],
+  },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ["**/*.{ts,tsx}"],

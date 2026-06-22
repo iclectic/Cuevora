@@ -49,6 +49,7 @@ export function useGestureControls({
 }: UseGestureControlsOptions) {
   const touchState = useRef<TouchState | null>(null);
   const lastTapTime = useRef(0);
+  const singleTapTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const callbackRefs = useRef({
     onSwipeUp, onSwipeDown, onSwipeLeft, onSwipeRight,
@@ -95,6 +96,10 @@ export function useGestureControls({
       const now = Date.now();
       if (now - lastTapTime.current < 350) {
         // Double tap
+        if (singleTapTimeout.current) {
+          clearTimeout(singleTapTimeout.current);
+          singleTapTimeout.current = null;
+        }
         callbackRefs.current.onDoubleTap?.();
         lastTapTime.current = 0;
       } else {
@@ -105,13 +110,16 @@ export function useGestureControls({
           const rect = el.getBoundingClientRect();
           const relX = touch.clientX - rect.left;
           const third = rect.width / 3;
-          if (relX < third) {
-            callbackRefs.current.onTapLeft?.();
-          } else if (relX > third * 2) {
-            callbackRefs.current.onTapRight?.();
-          } else {
-            callbackRefs.current.onTapCenter?.();
-          }
+          singleTapTimeout.current = setTimeout(() => {
+            if (relX < third) {
+              callbackRefs.current.onTapLeft?.();
+            } else if (relX > third * 2) {
+              callbackRefs.current.onTapRight?.();
+            } else {
+              callbackRefs.current.onTapCenter?.();
+            }
+            singleTapTimeout.current = null;
+          }, 220);
         }
       }
       touchState.current = null;
@@ -159,6 +167,7 @@ export function useGestureControls({
     el.addEventListener('touchmove', handleTouchMove, { passive: true });
 
     return () => {
+      if (singleTapTimeout.current) clearTimeout(singleTapTimeout.current);
       el.removeEventListener('touchstart', handleTouchStart);
       el.removeEventListener('touchend', handleTouchEnd);
       el.removeEventListener('touchmove', handleTouchMove);

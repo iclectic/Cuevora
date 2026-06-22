@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'app.openprompt.teleprompter',
+  appId: 'app.cuevora.teleprompter',
   appName: 'Cuevora',
   webDir: 'dist',
   server: {

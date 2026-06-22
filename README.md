@@ -8,7 +8,7 @@
 
 [![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=white)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://typescriptlang.org)
-[![Capacitor](https://img.shields.io/badge/Capacitor-7-119EFF?logo=capacitor&logoColor=white)](https://capacitorjs.com)
+[![Capacitor](https://img.shields.io/badge/Capacitor-8-119EFF?logo=capacitor&logoColor=white)](https://capacitorjs.com)
 [![Vite](https://img.shields.io/badge/Vite-5-646CFF?logo=vite&logoColor=white)](https://vitejs.dev)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
@@ -97,7 +97,7 @@ Cuevora is a cross-platform teleprompter application engineered to deliver a nat
 
 ### Authentication
 
-- **Firebase Auth** — Google Sign-In and Apple Sign-In via `firebase/auth` with conditional initialisation
+- **Firebase Auth readiness** — Optional Google and Apple Sign-In via `firebase/auth` with conditional initialisation; scripts remain local until real sync is implemented
 - **Guest mode** — Fully functional without any account; data stored locally on-device
 - **Graceful degradation** — If Firebase credentials are not configured, the auth UI adapts to show guest-only flow
 
@@ -185,8 +185,8 @@ cuevora/
 │   ├── sw.js                 # Service worker (offline cache)
 │   ├── privacy.html          # Privacy policy (self-hosted)
 │   └── terms.html            # Terms of service (self-hosted)
-├── android/                  # Capacitor Android project
-├── ios/                      # Capacitor iOS project
+├── android/                  # Capacitor Android project after `npx cap add android`
+├── ios/                      # Capacitor iOS project after `npx cap add ios`
 ├── capacitor.config.ts       # Native platform configuration
 ├── tailwind.config.ts        # Tailwind + shadcn/ui theme
 ├── vite.config.ts            # Build configuration
@@ -238,7 +238,7 @@ npm run build
 
 ## Firebase Setup (Optional)
 
-Firebase Auth enables Google and Apple Sign-In for cross-device sync. **This is entirely optional** — the app is fully functional in guest mode.
+Firebase Auth enables optional account identity through Google and Apple Sign-In. **This is entirely optional** — the app is fully functional in guest mode. Script sync is not implemented in the first Android release, so do not claim cross-device script sync until a real `SyncService` is added.
 
 1. Create a project at [Firebase Console](https://console.firebase.google.com)
 2. Enable **Authentication** → **Google** and **Apple** sign-in methods
@@ -280,8 +280,11 @@ Requires a valid Apple Developer certificate for device deployment. Free Apple I
 ### Android
 
 ```bash
-npm run build:android
-# Opens Android Studio → select device → ▶ Run
+npm run build
+npx cap add android    # first time only
+npx cap sync android
+npm run cap:open:android
+# Android Studio → select device → Run
 ```
 
 #### Signed Release Build (Play Store)
@@ -289,8 +292,12 @@ npm run build:android
 ```bash
 npm run build
 npx cap sync android
-# In Android Studio: Build → Generate Signed Bundle (AAB)
+cd android && ./gradlew lint
+cd android && ./gradlew test
+cd android && ./gradlew bundleRelease
 ```
+
+The Android package name is `app.cuevora.teleprompter`. See `PLAY_STORE_RELEASE_CHECKLIST.md` before uploading to Play Console.
 
 ### Legal Pages
 
@@ -317,6 +324,9 @@ VITE_PRIVACY_URL=https://your-domain.com/privacy.html
 | `npm run build:android` | Build web → sync → open Android Studio |
 | `npm run build:mobile` | Build web → sync iOS and Android |
 | `npm run cap:sync` | Sync web assets to native platforms |
+| `npm run android:lint` | Run Android lint from the generated Android project |
+| `npm run android:test` | Run Android unit tests from the generated Android project |
+| `npm run android:bundle` | Build the Android release bundle |
 
 ---
 
@@ -330,7 +340,7 @@ VITE_PRIVACY_URL=https://your-domain.com/privacy.html
 | **Styling** | TailwindCSS 3 + shadcn/ui | Utility-first CSS with accessible, composable component primitives |
 | **Animation** | Framer Motion | Declarative spring animations for splash, controls, and transitions |
 | **Auth** | Firebase Auth | Battle-tested OAuth for Google/Apple with minimal configuration |
-| **Native Runtime** | Capacitor 7 | Thin native bridge — WebView for UI, native APIs for platform integration |
+| **Native Runtime** | Capacitor 8 | Thin native bridge — WebView for UI, native APIs for platform integration |
 | **Testing** | Vitest | Vite-native test runner with Jest-compatible API |
 | **Offline** | Service Worker | Precaches static assets for full offline functionality |
 

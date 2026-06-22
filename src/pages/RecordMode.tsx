@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { getScript, getSettings } from '@/lib/storage';
+import { haptic } from '@/lib/haptics';
 import { PLAYER_THEMES, PlayerTheme } from '@/types/script';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
@@ -35,6 +36,7 @@ const RecordMode = () => {
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [permissionPromptDismissed, setPermissionPromptDismissed] = useState(false);
 
   // Recording state
   const [recording, setRecording] = useState(false);
@@ -69,24 +71,24 @@ const RecordMode = () => {
       }
       setCameraActive(true);
       setCameraError(null);
-    } catch (err) {
+    } catch {
       setCameraError('Camera access denied. Please allow camera and microphone permissions.');
       setCameraActive(false);
     }
   }, [facingMode]);
 
   useEffect(() => {
-    startCamera();
+    if (permissionPromptDismissed) startCamera();
     return () => {
       streamRef.current?.getTracks().forEach(t => t.stop());
     };
-  }, [startCamera]);
+  }, [permissionPromptDismissed, startCamera]);
 
   // Keep screen awake
   useEffect(() => {
-    let wakeLock: any = null;
+    let wakeLock: WakeLockSentinel | null = null;
     if ('wakeLock' in navigator) {
-      (navigator as any).wakeLock.request('screen').then((lock: any) => {
+      navigator.wakeLock.request('screen').then((lock) => {
         wakeLock = lock;
       }).catch(() => {});
     }
@@ -96,6 +98,7 @@ const RecordMode = () => {
   // Recording logic
   const startRecording = useCallback(() => {
     if (!streamRef.current) return;
+    void haptic('medium');
 
     // Clean up previous recording
     if (recordedVideoUrl) {
@@ -155,6 +158,7 @@ const RecordMode = () => {
   }, [recordedVideoUrl]);
 
   const stopRecording = useCallback(() => {
+    void haptic('medium');
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
     }
@@ -227,6 +231,7 @@ const RecordMode = () => {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
       }
+      void haptic('light');
     } catch (err) {
       console.error('Failed to save recording:', err);
       alert('Failed to save recording. Please try again.');
@@ -277,7 +282,12 @@ const RecordMode = () => {
   if (!script) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
-        <p className="text-muted-foreground">Script not found</p>
+        <div className="max-w-sm p-6 text-center">
+          <Camera className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
+          <h1 className="mb-2 text-lg font-semibold text-foreground">Script not found</h1>
+          <p className="mb-4 text-sm text-muted-foreground">The script may have been deleted or could not be loaded.</p>
+          <Button onClick={() => navigate('/home')}>Back to Scripts</Button>
+        </div>
       </div>
     );
   }
@@ -286,6 +296,25 @@ const RecordMode = () => {
 
   return (
     <div className="relative flex min-h-screen flex-col bg-black overflow-hidden">
+      {!permissionPromptDismissed && (
+        <div className="absolute inset-0 z-[80] flex items-center justify-center bg-black p-6 text-white">
+          <div className="max-w-sm rounded-2xl border border-white/15 bg-white/10 p-5 text-center">
+            <Camera className="mx-auto mb-3 h-10 w-10 text-violet-300" />
+            <h1 className="text-lg font-semibold">Camera and microphone access</h1>
+            <p className="mt-2 text-sm text-white/75">
+              Record mode needs camera and microphone permission to preview and save your take. Cuevora records locally and only shares when you choose.
+            </p>
+            <div className="mt-5 flex gap-2">
+              <Button variant="outline" className="flex-1 border-white/25 text-white hover:bg-white/10" onClick={() => navigate(-1)}>
+                Back
+              </Button>
+              <Button className="flex-1" onClick={() => setPermissionPromptDismissed(true)}>
+                Continue
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Camera preview */}
       <div className={`${splitView ? 'h-1/2' : 'absolute inset-0'} bg-black`}>
         <video
@@ -301,7 +330,11 @@ const RecordMode = () => {
             <div className="text-center">
               <Camera className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
               <p className="text-sm text-muted-foreground">{cameraError}</p>
-              <Button className="mt-3" size="sm" onClick={startCamera}>Retry</Button>
+              <p className="mt-2 text-xs text-muted-foreground">Open Android Settings if permissions were denied permanently, then return and retry.</p>
+              <div className="mt-3 flex justify-center gap-2">
+                <Button size="sm" onClick={startCamera}>Retry</Button>
+                <Button size="sm" variant="outline" onClick={() => navigate(-1)}>Back</Button>
+              </div>
             </div>
           </div>
         )}

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { getScript, getSettings, getWordCount } from '@/lib/storage';
+import { haptic } from '@/lib/haptics';
 import { PLAYER_THEMES, PlayerTheme } from '@/types/script';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
@@ -8,6 +9,7 @@ import {
   ArrowLeft, Play, Pause, SkipBack, SkipForward, FlipHorizontal,
   Type, AlignJustify, Palette, Timer, Video, Mic, MicOff,
   RotateCcw, Gauge, Hand, Camera, SwitchCamera,
+  Home, RefreshCw, ChevronsDown, ChevronsUp,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useVoiceControl, VoiceCommand } from '@/hooks/use-voice-control';
@@ -37,8 +39,15 @@ const Player = () => {
   const [focusLine, setFocusLine] = useState(settings.focusLineEnabled);
   const [showPanel, setShowPanel] = useState<'none' | 'speed' | 'font' | 'theme'>('none');
   const [scrollProgress, setScrollProgress] = useState(0);
-  const [voiceEnabled, setVoiceEnabled] = useState(false);
-  const [gesturesEnabled, setGesturesEnabled] = useState(true);
+  const [voiceEnabled, setVoiceEnabled] = useState(settings.voiceControlsEnabled);
+  const [gesturesEnabled, setGesturesEnabled] = useState(settings.gestureControlsEnabled);
+  const [showGestureGuide, setShowGestureGuide] = useState(() => {
+    try {
+      return localStorage.getItem('cuevora_player_gesture_guide_seen') !== 'true';
+    } catch {
+      return true;
+    }
+  });
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   // Camera state
@@ -55,6 +64,10 @@ const Player = () => {
   const streamRef = useRef<MediaStream | null>(null);
 
   const currentTheme = PLAYER_THEMES[theme];
+  const reduceMotion = useMemo(
+    () => window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+    [],
+  );
 
   // Word count & estimated read time
   const wordCount = useMemo(() => script ? getWordCount(script.content) : 0, [script]);
@@ -167,12 +180,14 @@ const Player = () => {
     if (!scrollRef.current) return;
     const pxPerSecond = speed * 20;
     scrollRef.current.scrollTop = Math.max(0, scrollRef.current.scrollTop - pxPerSecond * 5);
+    void haptic('light');
   }, [speed]);
 
   const forward = useCallback(() => {
     if (!scrollRef.current) return;
     const pxPerSecond = speed * 20;
     scrollRef.current.scrollTop += pxPerSecond * 5;
+    void haptic('light');
   }, [speed]);
 
   const resetScroll = useCallback(() => {
@@ -181,9 +196,19 @@ const Player = () => {
     setPlaying(false);
     setElapsedSeconds(0);
     setScrollProgress(0);
+    void haptic('medium');
+  }, []);
+
+  const jumpToEnd = useCallback(() => {
+    if (!scrollRef.current) return;
+    scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    setScrollProgress(1);
+    setPlaying(false);
+    void haptic('selection');
   }, []);
 
   const togglePlay = useCallback(() => {
+    void haptic('medium');
     if (!playing && scrollRef.current?.scrollTop === 0) {
       startCountdown(settings.countdownDuration);
     } else {
@@ -197,8 +222,8 @@ const Player = () => {
       case 'play': setPlaying(true); break;
       case 'pause': setPlaying(false); break;
       case 'stop': setPlaying(false); break;
-      case 'faster': setSpeed(s => Math.min(10, s + 1)); break;
-      case 'slower': setSpeed(s => Math.max(1, s - 1)); break;
+      case 'faster': setSpeed(s => Math.min(10, s + 1)); void haptic('selection'); break;
+      case 'slower': setSpeed(s => Math.max(1, s - 1)); void haptic('selection'); break;
       case 'reset': resetScroll(); break;
     }
   }, [resetScroll]);
@@ -226,10 +251,10 @@ const Player = () => {
     onTapLeft: rewind,
     onTapRight: forward,
     onDoubleTap: togglePlay,
-    onSwipeUp: () => setSpeed(s => Math.min(10, s + 0.5)),
-    onSwipeDown: () => setSpeed(s => Math.max(1, s - 0.5)),
-    onPinchOut: () => setFontSize(s => Math.min(72, s + 2)),
-    onPinchIn: () => setFontSize(s => Math.max(16, s - 2)),
+    onSwipeUp: () => { setSpeed(s => Math.min(10, s + 0.5)); void haptic('selection'); },
+    onSwipeDown: () => { setSpeed(s => Math.max(1, s - 0.5)); void haptic('selection'); },
+    onPinchOut: () => { setFontSize(s => Math.min(72, s + 2)); void haptic('selection'); },
+    onPinchIn: () => { setFontSize(s => Math.max(16, s - 2)); void haptic('selection'); },
   });
 
   // Camera
@@ -297,10 +322,12 @@ const Player = () => {
         case 'ArrowUp':
           e.preventDefault();
           setSpeed(s => Math.min(10, s + 0.5));
+          void haptic('selection');
           break;
         case 'ArrowDown':
           e.preventDefault();
           setSpeed(s => Math.max(1, s - 0.5));
+          void haptic('selection');
           break;
         case 'ArrowLeft':
           e.preventDefault();
@@ -312,9 +339,11 @@ const Player = () => {
           break;
         case 'm':
           setMirrored(m => !m);
+          void haptic('selection');
           break;
         case 'f':
           setFocusLine(f => !f);
+          void haptic('selection');
           break;
         case 'r':
           resetScroll();
@@ -333,7 +362,10 @@ const Player = () => {
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="text-center">
           <p className="text-muted-foreground mb-4">Script not found</p>
-          <Button onClick={() => navigate('/home')}>Go Home</Button>
+          <div className="flex gap-2">
+            <Button onClick={() => navigate('/home')}>Go Home</Button>
+            <Button variant="outline" onClick={() => window.location.reload()}>Reload</Button>
+          </div>
         </div>
       </div>
     );
@@ -419,8 +451,19 @@ const Player = () => {
               className="touch-target"
               style={{ color: currentTheme.fg }}
               onClick={() => navigate(-1)}
+              aria-label="Back"
             >
               <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="touch-target"
+              style={{ color: currentTheme.fg }}
+              onClick={() => navigate('/home')}
+              aria-label="Home"
+            >
+              <Home className="h-5 w-5" />
             </Button>
             <div className="flex-1 min-w-0">
               <span className="block text-sm font-medium truncate" style={{ color: currentTheme.fg }}>
@@ -437,7 +480,8 @@ const Player = () => {
               size="icon"
               className="touch-target"
               style={{ color: mirrored ? '#a78bfa' : currentTheme.fg }}
-              onClick={() => setMirrored(!mirrored)}
+              onClick={() => { setMirrored(!mirrored); void haptic('selection'); }}
+              aria-label="Toggle mirror mode"
             >
               <FlipHorizontal className="h-5 w-5" />
             </Button>
@@ -447,6 +491,7 @@ const Player = () => {
               className="touch-target"
               style={{ color: cameraOn ? '#a78bfa' : currentTheme.fg }}
               onClick={toggleCamera}
+              aria-label="Toggle camera overlay"
             >
               <Camera className="h-5 w-5" />
             </Button>
@@ -457,6 +502,7 @@ const Player = () => {
                 className="touch-target"
                 style={{ color: currentTheme.fg }}
                 onClick={switchCamera}
+                aria-label="Switch camera"
               >
                 <SwitchCamera className="h-5 w-5" />
               </Button>
@@ -467,6 +513,7 @@ const Player = () => {
               className="touch-target"
               style={{ color: currentTheme.fg }}
               onClick={() => navigate(`/record/${id}`)}
+              aria-label="Open record mode"
             >
               <Video className="h-5 w-5" />
             </Button>
@@ -538,6 +585,39 @@ const Player = () => {
         </div>
       </div>
 
+      <AnimatePresence>
+        {showGestureGuide && (
+          <motion.div
+            initial={reduceMotion ? false : { opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={reduceMotion ? undefined : { opacity: 0 }}
+            className="absolute inset-0 z-[70] flex items-center justify-center bg-black/75 p-6"
+          >
+            <div className="max-w-sm rounded-2xl border border-white/15 bg-black/90 p-5 text-white shadow-2xl">
+              <h2 className="text-lg font-semibold">Gesture guide</h2>
+              <ul className="mt-3 space-y-2 text-sm text-white/75">
+                <li>Tap centre: show or hide controls</li>
+                <li>Tap left or right: rewind or forward</li>
+                <li>Double tap: play or pause</li>
+                <li>Swipe up or down: adjust speed</li>
+                <li>Pinch with two fingers: change font size</li>
+                <li>Drag with one finger: manually scroll</li>
+              </ul>
+              <Button
+                className="mt-5 w-full"
+                onClick={() => {
+                  localStorage.setItem('cuevora_player_gesture_guide_seen', 'true');
+                  setShowGestureGuide(false);
+                  void haptic('light');
+                }}
+              >
+                Got it
+              </Button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Bottom controls */}
       <AnimatePresence>
         {showControls && (
@@ -569,7 +649,7 @@ const Player = () => {
                               backgroundColor: speed === preset.value ? '#7c3aed' : `${currentTheme.fg}11`,
                               color: speed === preset.value ? '#fff' : `${currentTheme.fg}88`,
                             }}
-                            onClick={() => setSpeed(preset.value)}
+                            onClick={() => { setSpeed(preset.value); void haptic('selection'); }}
                           >
                             {preset.label}
                           </button>
@@ -582,7 +662,7 @@ const Player = () => {
                         </div>
                         <Slider
                           value={[speed]}
-                          onValueChange={([v]) => setSpeed(v)}
+                          onValueChange={([v]) => { setSpeed(v); void haptic('selection'); }}
                           min={1}
                           max={10}
                           step={0.5}
@@ -600,7 +680,7 @@ const Player = () => {
                         </div>
                         <Slider
                           value={[fontSize]}
-                          onValueChange={([v]) => setFontSize(v)}
+                          onValueChange={([v]) => { setFontSize(v); void haptic('selection'); }}
                           min={16}
                           max={72}
                           step={2}
@@ -613,7 +693,7 @@ const Player = () => {
                         </div>
                         <Slider
                           value={[lineSpacing]}
-                          onValueChange={([v]) => setLineSpacing(v)}
+                          onValueChange={([v]) => { setLineSpacing(v); void haptic('selection'); }}
                           min={1}
                           max={3}
                           step={0.1}
@@ -634,7 +714,7 @@ const Player = () => {
                             color: PLAYER_THEMES[key].fg,
                             border: theme === key ? '2px solid #a78bfa' : '2px solid transparent',
                           }}
-                          onClick={() => setTheme(key)}
+                          onClick={() => { setTheme(key); void haptic('selection'); }}
                         >
                           {PLAYER_THEMES[key].label}
                         </button>
@@ -675,6 +755,7 @@ const Player = () => {
                 style={{ color: currentTheme.fg }}
                 onClick={resetScroll}
                 title="Reset to start"
+                aria-label="Reset to start"
               >
                 <RotateCcw className="h-4 w-4" />
               </Button>
@@ -685,6 +766,7 @@ const Player = () => {
                 style={{ color: currentTheme.fg }}
                 onClick={() => startCountdown(settings.countdownDuration)}
                 title="Countdown"
+                aria-label="Start countdown"
               >
                 <Timer className="h-4 w-4" />
               </Button>
@@ -695,6 +777,7 @@ const Player = () => {
                 style={{ color: currentTheme.fg }}
                 onClick={rewind}
                 title="Rewind"
+                aria-label="Rewind"
               >
                 <SkipBack className="h-5 w-5" />
               </Button>
@@ -702,6 +785,7 @@ const Player = () => {
                 size="icon"
                 className="h-16 w-16 rounded-full bg-primary text-primary-foreground shadow-lg"
                 onClick={togglePlay}
+                aria-label={playing ? 'Pause teleprompter' : 'Play teleprompter'}
               >
                 {playing ? <Pause className="h-7 w-7" /> : <Play className="h-7 w-7 ml-0.5" />}
               </Button>
@@ -712,6 +796,7 @@ const Player = () => {
                 style={{ color: currentTheme.fg }}
                 onClick={forward}
                 title="Forward"
+                aria-label="Forward"
               >
                 <SkipForward className="h-5 w-5" />
               </Button>
@@ -723,6 +808,7 @@ const Player = () => {
                   style={{ color: voice.listening ? '#a78bfa' : currentTheme.fg }}
                   onClick={toggleVoice}
                   title="Voice control"
+                  aria-label="Toggle voice control"
                 >
                   {voice.listening ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
                 </Button>
@@ -732,8 +818,9 @@ const Player = () => {
                 size="icon"
                 className="h-10 w-10 rounded-full"
                 style={{ color: focusLine ? '#a78bfa' : currentTheme.fg }}
-                onClick={() => setFocusLine(!focusLine)}
+                onClick={() => { setFocusLine(!focusLine); void haptic('selection'); }}
                 title="Focus line"
+                aria-label="Toggle focus line"
               >
                 <AlignJustify className="h-4 w-4" />
               </Button>
@@ -742,8 +829,9 @@ const Player = () => {
                 size="icon"
                 className="h-10 w-10 rounded-full"
                 style={{ color: gesturesEnabled ? '#a78bfa' : currentTheme.fg }}
-                onClick={() => setGesturesEnabled(!gesturesEnabled)}
+                onClick={() => { setGesturesEnabled(!gesturesEnabled); void haptic('selection'); }}
                 title="Gesture controls"
+                aria-label="Toggle gesture controls"
               >
                 <Hand className="h-4 w-4" />
               </Button>
@@ -755,6 +843,15 @@ const Player = () => {
               <span>{speed}x speed</span>
               <span>{fontSize}px</span>
               <span>{Math.round(scrollProgress * 100)}%</span>
+              <button type="button" onClick={resetScroll} className="inline-flex items-center gap-1 underline underline-offset-2">
+                <ChevronsUp className="h-3 w-3" /> Start
+              </button>
+              <button type="button" onClick={jumpToEnd} className="inline-flex items-center gap-1 underline underline-offset-2">
+                <ChevronsDown className="h-3 w-3" /> End
+              </button>
+              <button type="button" onClick={() => window.location.reload()} className="inline-flex items-center gap-1 underline underline-offset-2">
+                <RefreshCw className="h-3 w-3" /> Reload
+              </button>
             </div>
           </motion.div>
         )}
