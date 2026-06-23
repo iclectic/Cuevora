@@ -5,9 +5,11 @@
 - App name: Cuevora
 - Package name: `app.cuevora.teleprompter`
 - Version name: `1.0.0`
-- Version code: confirm in `android/app/build.gradle` before upload
-- Target SDK: Android 15 / API 35 or newer
-- Minimum SDK: keep aligned with Capacitor Android defaults unless plugin requirements change
+- Version code: `1` in `android/app/build.gradle`
+- Target SDK: `36`
+- Compile SDK: `36`
+- Minimum SDK: `24`
+- Capacitor: `8.x`
 
 ## Build Commands
 
@@ -22,14 +24,46 @@ cd android && ./gradlew test
 cd android && ./gradlew bundleRelease
 ```
 
+Release bundle path:
+
+```text
+android/app/build/outputs/bundle/release/app-release.aab
+```
+
 ## Permissions
 
 - `CAMERA`: required for camera overlay and record mode.
 - `RECORD_AUDIO`: required for record mode audio.
 - `INTERNET`: required only for optional Firebase Auth, legal pages and hosted assets.
+- Camera and microphone hardware are marked `required="false"` so the app can remain available on devices without those features.
 - No location, contacts, SMS, call log or background sensor permissions should be requested.
-- Confirm `android:usesCleartextTraffic="false"` before release.
-- Confirm mixed content is disabled in `capacitor.config.ts`.
+- `android:usesCleartextTraffic="false"` is set.
+- Mixed content is disabled in `capacitor.config.ts`.
+
+## Feature Verification
+
+- Home:
+  - Pull-to-refresh reloads local scripts/settings and shows a toast.
+  - Script deletion requires confirmation and offers undo.
+  - Sorting works for recently updated, recently created, A to Z and longest script.
+  - Compact and detailed card views both work.
+- Editor:
+  - Autosave shows Saving, Saved, Offline and Error saving states.
+  - Import/export/copy controls are labelled.
+  - Leaving during an active save warns the user.
+- Player:
+  - RAF scrolling remains smooth.
+  - Gesture guide appears on first run.
+  - Space, arrows, R, M, F and Esc hardware keyboard controls work.
+  - Haptics trigger on native Android and no-op on web.
+  - Missing/deleted script state has recovery actions.
+- Record mode:
+  - Camera/microphone rationale is shown before requesting access.
+  - Permission denial shows what happened, retry and back actions.
+  - Streams are stopped when leaving the page.
+- Settings:
+  - Account, Appearance, Teleprompter defaults, Recording and controls, Storage and backup, Privacy and legal, Feedback, Reset and About sections are present.
+  - Export backup, import backup and clear local data work.
 
 ## Store Assets
 
@@ -52,6 +86,10 @@ cd android && ./gradlew bundleRelease
 - Account deletion flow:
   - Current app exposes an account deletion request mail link in Settings.
   - Before public launch with account creation enabled, provide a public account deletion URL or in-app self-service deletion path that satisfies Google Play policy.
+- Passwordless email sign-in:
+  - UI is prepared, but Firebase action-code URLs must be configured and tested before enabling this as a production sign-in method.
+- Cloud sync:
+  - Not implemented. Do not mention script sync in Play listing copy until a real sync service exists.
 
 ## Testing Plan
 
@@ -77,3 +115,4 @@ cd android && ./gradlew bundleRelease
 - Cloud script sync is not implemented and must not be claimed.
 - Passwordless email sign-in UI is prepared but remains disabled until Firebase action-code URLs are configured.
 - Account deletion is a request path unless Firebase self-service deletion is added before enabling public account creation.
+- Android release signing is not configured in source control. Configure signing securely through Android Studio, Play App Signing or CI secrets.

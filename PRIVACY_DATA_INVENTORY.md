@@ -9,6 +9,7 @@ Cuevora is offline-first. The core teleprompter, editor, library, settings and r
 - App settings: teleprompter defaults, appearance, haptics, gestures, voice-control preference and onboarding state.
 - Guest mode flag.
 - Player gesture-guide seen flag.
+- Home library preferences such as sort and view mode are held in React state for the current session.
 - Backup files only when the user exports them.
 - Recordings only when the user records and saves or shares them.
 
@@ -31,11 +32,14 @@ When Firebase configuration is present and the user signs in, Firebase Authentic
 
 Cuevora currently uses sign-in for account identity and future sync readiness. Script sync is not implemented in this release, so script content remains local unless a future sync feature is built and disclosed.
 
+Passwordless email sign-in UI is prepared but not production-enabled. Enabling it requires Firebase action-code URL configuration, authorised domains and another privacy review.
+
 ## Camera And Microphone
 
 - Camera preview is used locally for overlay and record mode.
 - Microphone is used only in record mode.
 - Browser or Android permission prompts gate access.
+- Cuevora shows an in-app rationale before requesting camera and microphone access.
 - Media streams are stopped when the view unmounts or camera use ends.
 - Recordings are saved or shared only after user action.
 
@@ -44,6 +48,7 @@ Cuevora currently uses sign-in for account identity and future sync readiness. S
 - Backup export creates a JSON file containing local scripts, revisions and settings.
 - Backup import validates the file shape before replacing local data.
 - Users control where exported backup files are stored or shared.
+- Clearing local data removes scripts, revisions, settings and guest-mode state from the current device.
 
 ## Account Deletion
 

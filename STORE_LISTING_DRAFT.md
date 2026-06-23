@@ -19,9 +19,12 @@ Key features:
 - Gesture controls and Bluetooth keyboard shortcuts
 - Camera overlay and dedicated record mode
 - Script editor with auto-save, word count and read-time estimates
-- Tags, search, sorting and compact or detailed library views
+- Tags, search, pull-to-refresh, sorting and compact or detailed library views
+- Delete confirmation and undo for safer script management
 - Import and export text
 - Local JSON backup and restore
+- Native haptic feedback on supported Android devices
+- Clear camera and microphone permission screens for recording
 - Guest mode with optional Firebase sign-in readiness
 - Privacy-first design with no ads and no analytics by default
 
@@ -46,8 +49,10 @@ Cuevora works without an account. Scripts are stored locally by default. The app
 Initial Android release:
 
 - Offline-first script library and editor
-- Smooth teleprompter player with gestures, keyboard shortcuts and haptics
-- Camera overlay and recording mode
-- Backup and restore tools
+- Pull-to-refresh, sorting, compact/detailed views and safer delete undo
+- Editor autosave states for Saving, Saved, Offline and Error saving
+- Smooth teleprompter player with gesture guide, keyboard shortcuts and haptics
+- Camera overlay and recording mode with clearer permission handling
+- Backup, restore and clear-local-data tools
 - Guest mode and optional Firebase Auth readiness
 - Play Store privacy and release documentation
