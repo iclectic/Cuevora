@@ -59,7 +59,7 @@ This branch includes a Play Store readiness and UX hardening pass focused on mak
 <table>
 <tr>
 <td align="center"><img src="docs/screenshots/splash-screen.jpeg" width="200" /><br /><b>Splash Screen</b></td>
-<td align="center"><img src="docs/screenshots/player-playback.jpeg" width="200" /><br /><b>Teleprompter</b></td>
+<td align="center"><img src="docs/screenshots/playe-playback.jpeg" width="200" /><br /><b>Teleprompter</b></td>
 <td align="center"><img src="docs/screenshots/player-teleprompter.jpeg" width="200" /><br /><b>Scrolling</b></td>
 </tr>
 <tr>
