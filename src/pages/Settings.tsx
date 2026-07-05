@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getSettings, saveSettings, exportBackup, importBackup } from '@/lib/storage';
-import { AppSettings, PLAYER_THEMES, PlayerTheme, ColorMode } from '@/types/script';
+import { AppSettings, PLAYER_THEMES, PlayerTheme, ColorMode, DEFAULT_SETTINGS } from '@/types/script';
 import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { resolveLegalUrl } from '@/lib/utils';
-import { ArrowLeft, Download, Upload, Shield, MessageSquare, LogOut, User, Sun, Moon, Monitor } from 'lucide-react';
+import { ArrowLeft, Download, Upload, Shield, MessageSquare, LogOut, User, Sun, Moon, Monitor, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 
 const Settings = () => {
@@ -62,7 +62,7 @@ const Settings = () => {
     <div className="flex min-h-screen flex-col bg-background safe-area-padding">
       {/* Header */}
       <div className="flex items-center gap-2 px-4 pb-2" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top, 0px))' }}>
-        <Button variant="ghost" size="icon" className="touch-target text-white" onClick={() => navigate('/home')}>
+        <Button variant="ghost" size="icon" className="touch-target text-foreground" aria-label="Back" onClick={() => navigate('/home')}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <h1 className="text-lg font-bold text-foreground">Settings</h1>
@@ -114,17 +114,20 @@ const Settings = () => {
           </SettingRow>
 
           <SettingRow label="Words Per Minute">
-            <Input
-              type="number"
-              value={settings.wpm}
-              onChange={e => update({ wpm: Number(e.target.value) || 140 })}
-              className="w-20 text-right bg-surface"
-            />
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                value={settings.wpm}
+                onChange={e => update({ wpm: Number(e.target.value) || 140 })}
+                className="w-20 text-right bg-surface"
+              />
+              <span className="text-[10px] text-muted-foreground">Avg: 130–150</span>
+            </div>
           </SettingRow>
 
           <SettingRow label="Countdown Duration">
             <div className="flex gap-1.5">
-              {([3, 5, 10] as const).map(v => (
+              {([0, 3, 5, 10] as const).map(v => (
                 <button
                   key={v}
                   className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
@@ -132,9 +135,9 @@ const Settings = () => {
                       ? 'bg-primary text-primary-foreground'
                       : 'bg-secondary text-secondary-foreground'
                   }`}
-                  onClick={() => update({ countdownDuration: v })}
+                  onClick={() => update({ countdownDuration: v as 0 | 3 | 5 | 10 })}
                 >
-                  {v}s
+                  {v === 0 ? 'Off' : `${v}s`}
                 </button>
               ))}
             </div>
@@ -182,6 +185,17 @@ const Settings = () => {
               <Upload className="h-4 w-4 mr-2" /> Restore
             </Button>
           </div>
+          <Button
+            variant="ghost"
+            className="w-full touch-target justify-start text-muted-foreground"
+            onClick={() => {
+              const { onboardingComplete, ...defaults } = DEFAULT_SETTINGS;
+              update(defaults);
+              toast.success('Settings reset to defaults');
+            }}
+          >
+            <RotateCcw className="h-4 w-4 mr-2" /> Reset to Defaults
+          </Button>
         </Section>
 
         {/* Privacy */}

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { getScript, getSettings, getWordCount } from '@/lib/storage';
+import { toast } from 'sonner';
 import { PLAYER_THEMES, PlayerTheme } from '@/types/script';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
@@ -184,7 +185,7 @@ const Player = () => {
   }, []);
 
   const togglePlay = useCallback(() => {
-    if (!playing && scrollRef.current?.scrollTop === 0) {
+    if (!playing && scrollRef.current?.scrollTop === 0 && settings.countdownDuration > 0) {
       startCountdown(settings.countdownDuration);
     } else {
       setPlaying(p => !p);
@@ -194,12 +195,12 @@ const Player = () => {
   // Voice control
   const handleVoiceCommand = useCallback((cmd: VoiceCommand) => {
     switch (cmd) {
-      case 'play': setPlaying(true); break;
-      case 'pause': setPlaying(false); break;
-      case 'stop': setPlaying(false); break;
-      case 'faster': setSpeed(s => Math.min(10, s + 1)); break;
-      case 'slower': setSpeed(s => Math.max(1, s - 1)); break;
-      case 'reset': resetScroll(); break;
+      case 'play': setPlaying(true); toast('Playing', { duration: 1200 }); break;
+      case 'pause': setPlaying(false); toast('Paused', { duration: 1200 }); break;
+      case 'stop': setPlaying(false); toast('Stopped', { duration: 1200 }); break;
+      case 'faster': setSpeed(s => Math.min(10, s + 1)); toast('Faster', { duration: 1200 }); break;
+      case 'slower': setSpeed(s => Math.max(1, s - 1)); toast('Slower', { duration: 1200 }); break;
+      case 'reset': resetScroll(); toast('Reset', { duration: 1200 }); break;
     }
   }, [resetScroll]);
 
@@ -285,6 +286,21 @@ const Player = () => {
       streamRef.current?.getTracks().forEach(t => t.stop());
     };
   }, []);
+
+  // Save scroll position on unmount, restore on mount
+  useEffect(() => {
+    if (!id) return;
+    const el = scrollRef.current;
+    const savedPos = sessionStorage.getItem(`cuevora_scroll_${id}`);
+    if (savedPos && el) {
+      el.scrollTop = Number(savedPos);
+    }
+    return () => {
+      if (el && id) {
+        sessionStorage.setItem(`cuevora_scroll_${id}`, String(el.scrollTop));
+      }
+    };
+  }, [id]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -419,6 +435,7 @@ const Player = () => {
               className="touch-target"
               style={{ color: currentTheme.fg }}
               onClick={() => navigate(-1)}
+              aria-label="Back"
             >
               <ArrowLeft className="h-5 w-5" />
             </Button>
@@ -438,6 +455,7 @@ const Player = () => {
               className="touch-target"
               style={{ color: mirrored ? '#a78bfa' : currentTheme.fg }}
               onClick={() => setMirrored(!mirrored)}
+              aria-label="Mirror mode"
             >
               <FlipHorizontal className="h-5 w-5" />
             </Button>
@@ -447,6 +465,7 @@ const Player = () => {
               className="touch-target"
               style={{ color: cameraOn ? '#a78bfa' : currentTheme.fg }}
               onClick={toggleCamera}
+              aria-label="Toggle camera"
             >
               <Camera className="h-5 w-5" />
             </Button>
@@ -457,6 +476,7 @@ const Player = () => {
                 className="touch-target"
                 style={{ color: currentTheme.fg }}
                 onClick={switchCamera}
+                aria-label="Switch camera"
               >
                 <SwitchCamera className="h-5 w-5" />
               </Button>
@@ -467,6 +487,7 @@ const Player = () => {
               className="touch-target"
               style={{ color: currentTheme.fg }}
               onClick={() => navigate(`/record/${id}`)}
+              aria-label="Record mode"
             >
               <Video className="h-5 w-5" />
             </Button>
@@ -675,6 +696,7 @@ const Player = () => {
                 style={{ color: currentTheme.fg }}
                 onClick={resetScroll}
                 title="Reset to start"
+                aria-label="Reset to start"
               >
                 <RotateCcw className="h-4 w-4" />
               </Button>
@@ -685,6 +707,7 @@ const Player = () => {
                 style={{ color: currentTheme.fg }}
                 onClick={() => startCountdown(settings.countdownDuration)}
                 title="Countdown"
+                aria-label="Countdown"
               >
                 <Timer className="h-4 w-4" />
               </Button>
@@ -695,6 +718,7 @@ const Player = () => {
                 style={{ color: currentTheme.fg }}
                 onClick={rewind}
                 title="Rewind"
+                aria-label="Rewind"
               >
                 <SkipBack className="h-5 w-5" />
               </Button>
@@ -702,6 +726,7 @@ const Player = () => {
                 size="icon"
                 className="h-16 w-16 rounded-full bg-primary text-primary-foreground shadow-lg"
                 onClick={togglePlay}
+                aria-label={playing ? 'Pause' : 'Play'}
               >
                 {playing ? <Pause className="h-7 w-7" /> : <Play className="h-7 w-7 ml-0.5" />}
               </Button>
@@ -712,6 +737,7 @@ const Player = () => {
                 style={{ color: currentTheme.fg }}
                 onClick={forward}
                 title="Forward"
+                aria-label="Forward"
               >
                 <SkipForward className="h-5 w-5" />
               </Button>
@@ -723,6 +749,7 @@ const Player = () => {
                   style={{ color: voice.listening ? '#a78bfa' : currentTheme.fg }}
                   onClick={toggleVoice}
                   title="Voice control"
+                  aria-label="Voice control"
                 >
                   {voice.listening ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
                 </Button>
@@ -734,6 +761,7 @@ const Player = () => {
                 style={{ color: focusLine ? '#a78bfa' : currentTheme.fg }}
                 onClick={() => setFocusLine(!focusLine)}
                 title="Focus line"
+                aria-label="Focus line"
               >
                 <AlignJustify className="h-4 w-4" />
               </Button>
@@ -744,6 +772,7 @@ const Player = () => {
                 style={{ color: gesturesEnabled ? '#a78bfa' : currentTheme.fg }}
                 onClick={() => setGesturesEnabled(!gesturesEnabled)}
                 title="Gesture controls"
+                aria-label="Gesture controls"
               >
                 <Hand className="h-4 w-4" />
               </Button>

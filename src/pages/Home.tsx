@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getScripts, deleteScript, getAllTags } from '@/lib/storage';
 import { Script } from '@/types/script';
-import { Plus, Search, Play, MoreVertical, Trash2, Edit, FileText } from 'lucide-react';
+import { Plus, Search, Play, MoreVertical, Trash2, Edit, FileText, ArrowUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -13,16 +13,30 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+
+type SortOption = 'updated' | 'created' | 'title' | 'length';
 
 const Home = () => {
   const navigate = useNavigate();
   const [scripts, setScripts] = useState<Script[]>(getScripts());
   const [search, setSearch] = useState('');
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<SortOption>('updated');
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
   const allTags = useMemo(() => getAllTags(), [scripts]);
 
   const filtered = useMemo(() => {
-    let result = scripts;
+    let result = [...scripts];
     if (search) {
       const q = search.toLowerCase();
       result = result.filter(s =>
@@ -32,13 +46,25 @@ const Home = () => {
     if (selectedTag) {
       result = result.filter(s => s.tags.includes(selectedTag));
     }
+    switch (sortBy) {
+      case 'created': result.sort((a, b) => b.createdAt - a.createdAt); break;
+      case 'title': result.sort((a, b) => a.title.localeCompare(b.title)); break;
+      case 'length': result.sort((a, b) => b.content.length - a.content.length); break;
+      default: result.sort((a, b) => b.updatedAt - a.updatedAt); break;
+    }
     return result;
-  }, [scripts, search, selectedTag]);
+  }, [scripts, search, selectedTag, sortBy]);
 
   const handleDelete = (id: string) => {
     deleteScript(id);
     setScripts(getScripts());
+    setDeleteTarget(null);
   };
+
+  const mostRecent = useMemo(() => {
+    if (scripts.length === 0) return null;
+    return [...scripts].sort((a, b) => b.updatedAt - a.updatedAt)[0];
+  }, [scripts]);
 
   const formatDate = (ts: number) => {
     const d = new Date(ts);
@@ -56,7 +82,7 @@ const Home = () => {
       <div className="px-5 pb-2" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top, 0px))' }}>
         <div className="flex items-center justify-between mb-1">
           <h1 className="text-2xl font-bold tracking-tight text-foreground cursor-pointer" onClick={() => navigate('/home')}>Cuevora</h1>
-          <Button variant="ghost" size="icon" onClick={() => navigate('/settings')} className="touch-target">
+          <Button variant="ghost" size="icon" onClick={() => navigate('/settings')} className="touch-target" aria-label="Settings">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
           </Button>
         </div>
@@ -98,16 +124,36 @@ const Home = () => {
       </div>
 
       {/* Quick start */}
-      {scripts.length > 0 && (
+      {mostRecent && (
         <div className="px-5 py-3">
           <Button
             className="w-full touch-target justify-start gap-3"
             variant="secondary"
-            onClick={() => navigate(`/player/${scripts[0].id}`)}
+            onClick={() => navigate(`/player/${mostRecent.id}`)}
           >
             <Play className="h-4 w-4 text-primary" />
-            <span className="truncate">Continue: {scripts[0].title}</span>
+            <span className="truncate">Continue: {mostRecent.title}</span>
           </Button>
+        </div>
+      )}
+
+      {/* Sort */}
+      {scripts.length > 1 && (
+        <div className="flex items-center justify-end px-5 pb-1">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="text-xs text-muted-foreground gap-1 h-7">
+                <ArrowUpDown className="h-3 w-3" />
+                {sortBy === 'updated' ? 'Recently edited' : sortBy === 'created' ? 'Recently created' : sortBy === 'title' ? 'Title A–Z' : 'Longest first'}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setSortBy('updated')}>Recently edited</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setSortBy('created')}>Recently created</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setSortBy('title')}>Title A–Z</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setSortBy('length')}>Longest first</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       )}
 
@@ -169,13 +215,14 @@ const Home = () => {
                       variant="ghost"
                       size="icon"
                       className="touch-target text-primary"
+                      aria-label="Play script"
                       onClick={e => { e.stopPropagation(); navigate(`/player/${script.id}`); }}
                     >
                       <Play className="h-4 w-4" />
                     </Button>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="touch-target" onClick={e => e.stopPropagation()}>
+                        <Button variant="ghost" size="icon" className="touch-target" aria-label="More options" onClick={e => e.stopPropagation()}>
                           <MoreVertical className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
@@ -185,7 +232,7 @@ const Home = () => {
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           className="text-destructive"
-                          onClick={() => handleDelete(script.id)}
+                          onClick={() => setDeleteTarget({ id: script.id, title: script.title })}
                         >
                           <Trash2 className="h-4 w-4 mr-2" /> Delete
                         </DropdownMenuItem>
@@ -204,11 +251,33 @@ const Home = () => {
         <Button
           size="lg"
           className="h-14 w-14 rounded-full shadow-lg touch-target bg-violet-600 hover:bg-violet-700 text-white"
+          aria-label="Create new script"
           onClick={() => navigate('/editor/new')}
         >
           <Plus className="h-6 w-6" />
         </Button>
       </div>
+
+      {/* Delete confirmation */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete script?</AlertDialogTitle>
+            <AlertDialogDescription>
+              "{deleteTarget?.title}" will be permanently deleted. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteTarget && handleDelete(deleteTarget.id)}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

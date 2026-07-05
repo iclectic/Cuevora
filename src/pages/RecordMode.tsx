@@ -10,6 +10,16 @@ import {
   Download,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
 import { Capacitor } from '@capacitor/core';
@@ -38,9 +48,11 @@ const RecordMode = () => {
 
   // Recording state
   const [recording, setRecording] = useState(false);
+  const [recordingPaused, setRecordingPaused] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [recordedVideoUrl, setRecordedVideoUrl] = useState<string | null>(null);
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
+  const [showLeaveDialog, setShowLeaveDialog] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -154,12 +166,36 @@ const RecordMode = () => {
     }
   }, [recordedVideoUrl]);
 
+  const pauseRecording = useCallback(() => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      mediaRecorderRef.current.pause();
+      setRecordingPaused(true);
+      setPlaying(false);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = undefined;
+      }
+    }
+  }, []);
+
+  const resumeRecording = useCallback(() => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'paused') {
+      mediaRecorderRef.current.resume();
+      setRecordingPaused(false);
+      setPlaying(true);
+      timerRef.current = setInterval(() => {
+        setRecordingDuration(d => d + 1);
+      }, 1000);
+    }
+  }, []);
+
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
     }
     mediaRecorderRef.current = null;
     setRecording(false);
+    setRecordingPaused(false);
     setPlaying(false);
 
     if (timerRef.current) {
@@ -167,6 +203,20 @@ const RecordMode = () => {
       timerRef.current = undefined;
     }
   }, []);
+
+  const handleBack = useCallback(() => {
+    if (recording) {
+      setShowLeaveDialog(true);
+    } else {
+      navigate(-1);
+    }
+  }, [recording, navigate]);
+
+  const confirmLeave = useCallback(() => {
+    stopRecording();
+    setShowLeaveDialog(false);
+    navigate(-1);
+  }, [stopRecording, navigate]);
 
   // Clean up on unmount
   useEffect(() => {
@@ -310,9 +360,9 @@ const RecordMode = () => {
       {/* Recording indicator */}
       {recording && (
         <div className="absolute top-14 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-black/70 rounded-full px-4 py-1.5">
-          <div className="h-3 w-3 rounded-full bg-red-500 animate-pulse" />
+          <div className={`h-3 w-3 rounded-full ${recordingPaused ? 'bg-yellow-500' : 'bg-red-500 animate-pulse'}`} />
           <span className="text-white text-sm font-mono font-medium">
-            REC {formatDuration(recordingDuration)}
+            {recordingPaused ? 'PAUSED' : 'REC'} {formatDuration(recordingDuration)}
           </span>
         </div>
       )}
@@ -377,14 +427,11 @@ const RecordMode = () => {
 
       {/* Top controls */}
       <div className="absolute top-0 left-0 right-0 z-50 flex items-center gap-2 px-4 py-3 bg-black/50" style={{ paddingTop: 'calc(2rem + env(safe-area-inset-top, 0px))' }}>
-        <Button variant="ghost" size="icon" className="touch-target text-white" onClick={() => {
-          if (recording) stopRecording();
-          navigate(-1);
-        }}>
+        <Button variant="ghost" size="icon" className="touch-target text-white" aria-label="Back" onClick={handleBack}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <span className="flex-1 text-sm font-medium text-white truncate">{script.title}</span>
-        <Button variant="ghost" size="icon" className={`touch-target ${recording ? 'text-white/30' : 'text-white'}`} onClick={toggleCamera} disabled={recording}>
+        <Button variant="ghost" size="icon" className={`touch-target ${recording ? 'text-white/30' : 'text-white'}`} aria-label="Switch camera" onClick={toggleCamera} disabled={recording}>
           <SwitchCamera className="h-5 w-5" />
         </Button>
         <Button
@@ -392,6 +439,7 @@ const RecordMode = () => {
           className="touch-target"
           style={{ color: mirrored ? '#a78bfa' : 'white' }}
           onClick={() => setMirrored(!mirrored)}
+          aria-label="Mirror mode"
         >
           <FlipHorizontal className="h-5 w-5" />
         </Button>
@@ -400,6 +448,7 @@ const RecordMode = () => {
           className="touch-target"
           style={{ color: splitView ? '#a78bfa' : 'white' }}
           onClick={() => setSplitView(!splitView)}
+          aria-label="Toggle split view"
         >
           {splitView ? <Layers className="h-5 w-5" /> : <Columns className="h-5 w-5" />}
         </Button>
@@ -412,15 +461,15 @@ const RecordMode = () => {
           <Slider
             value={[fontSize]}
             onValueChange={([v]) => setFontSize(v)}
-            min={14}
-            max={48}
+            min={16}
+            max={72}
             step={2}
             className="flex-1"
           />
           <span className="text-xs text-white/60 w-8 text-right">{fontSize}</span>
         </div>
         <div className="flex items-center justify-center gap-4 px-6 py-3">
-          <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full text-white"
+          <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full text-white" aria-label="Rewind"
             onClick={() => { if (scrollRef.current) scrollRef.current.scrollTop = Math.max(0, scrollRef.current.scrollTop - speed * 100); }}>
             <SkipBack className="h-5 w-5" />
           </Button>
@@ -429,31 +478,72 @@ const RecordMode = () => {
           <Button
             size="icon"
             className="h-12 w-12 rounded-full bg-white/20 text-white"
+            aria-label={playing ? 'Pause teleprompter' : 'Play teleprompter'}
             onClick={() => setPlaying(!playing)}
           >
             {playing ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5 ml-0.5" />}
           </Button>
 
           {/* Record button — big red circle */}
-          <button
-            onClick={recording ? stopRecording : startRecording}
-            disabled={!cameraActive}
-            className="h-16 w-16 rounded-full border-4 border-white flex items-center justify-center transition-all disabled:opacity-30"
-            aria-label={recording ? 'Stop recording' : 'Start recording'}
-          >
-            {recording ? (
-              <Square className="h-6 w-6 text-red-500 fill-red-500" />
-            ) : (
+          {recording ? (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={recordingPaused ? resumeRecording : pauseRecording}
+                className="h-12 w-12 rounded-full border-4 border-yellow-500 flex items-center justify-center transition-all"
+                aria-label={recordingPaused ? 'Resume recording' : 'Pause recording'}
+              >
+                {recordingPaused ? (
+                  <Play className="h-5 w-5 text-yellow-500 fill-yellow-500 ml-0.5" />
+                ) : (
+                  <Pause className="h-5 w-5 text-yellow-500" />
+                )}
+              </button>
+              <button
+                onClick={stopRecording}
+                className="h-16 w-16 rounded-full border-4 border-white flex items-center justify-center transition-all"
+                aria-label="Stop recording"
+              >
+                <Square className="h-6 w-6 text-red-500 fill-red-500" />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={startRecording}
+              disabled={!cameraActive}
+              className="h-16 w-16 rounded-full border-4 border-white flex items-center justify-center transition-all disabled:opacity-30"
+              aria-label="Start recording"
+            >
               <Circle className="h-10 w-10 text-red-500 fill-red-500" />
-            )}
-          </button>
+            </button>
+          )}
 
-          <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full text-white"
+          <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full text-white" aria-label="Forward"
             onClick={() => { if (scrollRef.current) scrollRef.current.scrollTop += speed * 100; }}>
             <SkipForward className="h-5 w-5" />
           </Button>
         </div>
       </div>
+
+      {/* Leave confirmation during recording */}
+      <AlertDialog open={showLeaveDialog} onOpenChange={setShowLeaveDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Stop recording?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have an active recording. Leaving will stop and discard it.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Continue Recording</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={confirmLeave}
+            >
+              Stop & Leave
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
