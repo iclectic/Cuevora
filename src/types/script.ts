@@ -30,7 +30,7 @@ export interface AppSettings {
   analyticsOptIn: boolean;
   onboardingComplete: boolean;
   mirrorMode: boolean;
-  countdownDuration: 3 | 5 | 10;
+  countdownDuration: 0 | 3 | 5 | 10;
   focusLineEnabled: boolean;
   colorMode: ColorMode;
   hapticsEnabled: boolean;

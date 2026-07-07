@@ -7,10 +7,19 @@ import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import {
   ArrowLeft, Play, Pause, SkipBack, SkipForward, FlipHorizontal,
-  Camera, SwitchCamera, Columns, Layers, Type, Circle, Square,
+  Camera, SwitchCamera, Columns, Layers, Type,
   Download,
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
 import { Capacitor } from '@capacitor/core';
@@ -36,13 +45,15 @@ const RecordMode = () => {
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
-  const [permissionPromptDismissed, setPermissionPromptDismissed] = useState(false);
+  const [recordingError, setRecordingError] = useState<string | null>(null);
+  const [requestingMedia, setRequestingMedia] = useState(false);
 
   // Recording state
   const [recording, setRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [recordedVideoUrl, setRecordedVideoUrl] = useState<string | null>(null);
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
+  const [showLeaveDialog, setShowLeaveDialog] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -57,10 +68,26 @@ const RecordMode = () => {
 
   // Camera — request audio too so recordings have sound
   const startCamera = useCallback(async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      const message = 'Camera and microphone recording is not supported by this browser.';
+      setCameraError(message);
+      throw new Error(message);
+    }
+
     try {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(t => t.stop());
+      const activeStream = streamRef.current;
+      const hasLiveTracks = activeStream?.getTracks().some(track => track.readyState === 'live');
+      if (activeStream && hasLiveTracks) {
+        if (videoRef.current && videoRef.current.srcObject !== activeStream) {
+          videoRef.current.srcObject = activeStream;
+          await videoRef.current.play().catch(() => {});
+        }
+        setCameraActive(true);
+        setCameraError(null);
+        return activeStream;
       }
+
+      streamRef.current?.getTracks().forEach(t => t.stop());
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode, width: { ideal: 1920 }, height: { ideal: 1080 } },
         audio: true,
@@ -68,21 +95,29 @@ const RecordMode = () => {
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        await videoRef.current.play().catch(() => {});
       }
       setCameraActive(true);
       setCameraError(null);
-    } catch {
-      setCameraError('Camera access denied. Please allow camera and microphone permissions.');
+      return stream;
+    } catch (err) {
+      const message = err instanceof DOMException && err.name === 'NotAllowedError'
+        ? 'Camera or microphone permission was denied. Please allow both permissions to record.'
+        : 'Camera or microphone is unavailable. Please check your device and browser permissions.';
+      setCameraError(message);
       setCameraActive(false);
+      throw err;
     }
   }, [facingMode]);
 
-  useEffect(() => {
-    if (permissionPromptDismissed) startCamera();
-    return () => {
-      streamRef.current?.getTracks().forEach(t => t.stop());
-    };
-  }, [permissionPromptDismissed, startCamera]);
+  const stopCamera = useCallback(() => {
+    streamRef.current?.getTracks().forEach(t => t.stop());
+    streamRef.current = null;
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setCameraActive(false);
+  }, []);
 
   // Keep screen awake
   useEffect(() => {
@@ -96,9 +131,24 @@ const RecordMode = () => {
   }, []);
 
   // Recording logic
-  const startRecording = useCallback(() => {
-    if (!streamRef.current) return;
+  const startRecording = useCallback(async () => {
+    if (requestingMedia || recording) return;
+    if (!window.MediaRecorder) {
+      setRecordingError('Video recording is not supported by this browser. Try Chrome, Edge, Safari 14.1+, or Firefox.');
+      return;
+    }
+
     void haptic('medium');
+    setRequestingMedia(true);
+    setRecordingError(null);
+
+    let stream: MediaStream;
+    try {
+      stream = await startCamera();
+    } catch {
+      setRequestingMedia(false);
+      return;
+    }
 
     // Clean up previous recording
     if (recordedVideoUrl) {
@@ -124,7 +174,7 @@ const RecordMode = () => {
     }
 
     try {
-      const recorder = new MediaRecorder(streamRef.current, {
+      const recorder = new MediaRecorder(stream, {
         mimeType: mimeType || undefined,
         videoBitsPerSecond: 4_000_000,
       });
@@ -139,11 +189,13 @@ const RecordMode = () => {
         setRecordedVideoUrl(url);
         setRecordedBlob(blob);
         chunksRef.current = [];
+        stopCamera();
       };
 
       recorder.start(1000); // collect data every second
       mediaRecorderRef.current = recorder;
       setRecording(true);
+      setCameraActive(true);
 
       // Start duration timer
       timerRef.current = setInterval(() => {
@@ -154,8 +206,13 @@ const RecordMode = () => {
       setPlaying(true);
     } catch (err) {
       console.error('Failed to start recording:', err);
+      setRecordingError('Recording could not be started on this browser or device.');
+      setPlaying(false);
+      stopCamera();
+    } finally {
+      setRequestingMedia(false);
     }
-  }, [recordedVideoUrl]);
+  }, [recordedVideoUrl, recording, requestingMedia, startCamera, stopCamera]);
 
   const stopRecording = useCallback(() => {
     void haptic('medium');
@@ -172,6 +229,20 @@ const RecordMode = () => {
     }
   }, []);
 
+  const handleBack = useCallback(() => {
+    if (recording) {
+      setShowLeaveDialog(true);
+    } else {
+      navigate(-1);
+    }
+  }, [recording, navigate]);
+
+  const confirmLeave = useCallback(() => {
+    stopRecording();
+    setShowLeaveDialog(false);
+    navigate(-1);
+  }, [stopRecording, navigate]);
+
   // Clean up on unmount
   useEffect(() => {
     return () => {
@@ -180,8 +251,9 @@ const RecordMode = () => {
       }
       if (timerRef.current) clearInterval(timerRef.current);
       if (recordedVideoUrl) URL.revokeObjectURL(recordedVideoUrl);
+      stopCamera();
     };
-  }, [recordedVideoUrl]);
+  }, [recordedVideoUrl, stopCamera]);
 
   const [saving, setSaving] = useState(false);
 
@@ -296,27 +368,8 @@ const RecordMode = () => {
 
   return (
     <div className="relative flex min-h-screen flex-col bg-black overflow-hidden">
-      {!permissionPromptDismissed && (
-        <div className="absolute inset-0 z-[80] flex items-center justify-center bg-black p-6 text-white">
-          <div className="max-w-sm rounded-2xl border border-white/15 bg-white/10 p-5 text-center">
-            <Camera className="mx-auto mb-3 h-10 w-10 text-violet-300" />
-            <h1 className="text-lg font-semibold">Camera and microphone access</h1>
-            <p className="mt-2 text-sm text-white/75">
-              Record mode needs camera and microphone permission to preview and save your take. Cuevora records locally and only shares when you choose.
-            </p>
-            <div className="mt-5 flex gap-2">
-              <Button variant="outline" className="flex-1 border-white/25 text-white hover:bg-white/10" onClick={() => navigate(-1)}>
-                Back
-              </Button>
-              <Button className="flex-1" onClick={() => setPermissionPromptDismissed(true)}>
-                Continue
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
       {/* Camera preview */}
-      <div className={`${splitView ? 'h-1/2' : 'absolute inset-0'} bg-black`}>
+      <div className={`${splitView ? 'h-1/2' : 'absolute inset-0'} z-0 bg-black`}>
         <video
           ref={videoRef}
           autoPlay
@@ -332,7 +385,7 @@ const RecordMode = () => {
               <p className="text-sm text-muted-foreground">{cameraError}</p>
               <p className="mt-2 text-xs text-muted-foreground">Open Android Settings if permissions were denied permanently, then return and retry.</p>
               <div className="mt-3 flex justify-center gap-2">
-                <Button size="sm" onClick={startCamera}>Retry</Button>
+                <Button size="sm" onClick={() => startCamera().catch(() => {})}>Retry</Button>
                 <Button size="sm" variant="outline" onClick={() => navigate(-1)}>Back</Button>
               </div>
             </div>
@@ -345,7 +398,7 @@ const RecordMode = () => {
         <div className="absolute top-14 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-black/70 rounded-full px-4 py-1.5">
           <div className="h-3 w-3 rounded-full bg-red-500 animate-pulse" />
           <span className="text-white text-sm font-mono font-medium">
-            REC {formatDuration(recordingDuration)}
+            Recording... {formatDuration(recordingDuration)}
           </span>
         </div>
       )}
@@ -353,9 +406,9 @@ const RecordMode = () => {
       {/* Script overlay / split view */}
       <div
         ref={scrollRef}
-        className={`${splitView ? 'h-1/2' : 'absolute inset-0'} overflow-y-auto`}
+        className={`${splitView ? 'h-1/2' : 'absolute inset-0'} z-10 overflow-y-auto`}
         style={{
-          backgroundColor: splitView ? currentTheme.bg : `${currentTheme.bg}99`,
+          backgroundColor: splitView ? currentTheme.bg : `${currentTheme.bg}${cameraActive ? '66' : '99'}`,
           color: currentTheme.fg,
           transform: mirrored ? 'scaleX(-1)' : 'none',
         }}
@@ -410,14 +463,11 @@ const RecordMode = () => {
 
       {/* Top controls */}
       <div className="absolute top-0 left-0 right-0 z-50 flex items-center gap-2 px-4 py-3 bg-black/50" style={{ paddingTop: 'calc(2rem + env(safe-area-inset-top, 0px))' }}>
-        <Button variant="ghost" size="icon" className="touch-target text-white" onClick={() => {
-          if (recording) stopRecording();
-          navigate(-1);
-        }}>
+        <Button variant="ghost" size="icon" className="touch-target text-white" aria-label="Back" onClick={handleBack}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <span className="flex-1 text-sm font-medium text-white truncate">{script.title}</span>
-        <Button variant="ghost" size="icon" className={`touch-target ${recording ? 'text-white/30' : 'text-white'}`} onClick={toggleCamera} disabled={recording}>
+        <Button variant="ghost" size="icon" className={`touch-target ${recording ? 'text-white/30' : 'text-white'}`} aria-label="Switch camera" onClick={toggleCamera} disabled={recording}>
           <SwitchCamera className="h-5 w-5" />
         </Button>
         <Button
@@ -425,6 +475,7 @@ const RecordMode = () => {
           className="touch-target"
           style={{ color: mirrored ? '#a78bfa' : 'white' }}
           onClick={() => setMirrored(!mirrored)}
+          aria-label="Mirror mode"
         >
           <FlipHorizontal className="h-5 w-5" />
         </Button>
@@ -433,6 +484,7 @@ const RecordMode = () => {
           className="touch-target"
           style={{ color: splitView ? '#a78bfa' : 'white' }}
           onClick={() => setSplitView(!splitView)}
+          aria-label="Toggle split view"
         >
           {splitView ? <Layers className="h-5 w-5" /> : <Columns className="h-5 w-5" />}
         </Button>
@@ -445,48 +497,81 @@ const RecordMode = () => {
           <Slider
             value={[fontSize]}
             onValueChange={([v]) => setFontSize(v)}
-            min={14}
-            max={48}
+            min={16}
+            max={72}
             step={2}
             className="flex-1"
           />
           <span className="text-xs text-white/60 w-8 text-right">{fontSize}</span>
         </div>
         <div className="flex items-center justify-center gap-4 px-6 py-3">
-          <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full text-white"
+          <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full text-white" aria-label="Rewind"
             onClick={() => { if (scrollRef.current) scrollRef.current.scrollTop = Math.max(0, scrollRef.current.scrollTop - speed * 100); }}>
             <SkipBack className="h-5 w-5" />
           </Button>
 
-          {/* Teleprompter play/pause */}
+          {/* Teleprompter preview only */}
           <Button
-            size="icon"
-            className="h-12 w-12 rounded-full bg-white/20 text-white"
+            size="sm"
+            className="h-11 rounded-full bg-white/20 px-4 text-white"
+            aria-label={playing ? 'Pause preview scroll' : 'Preview scroll'}
             onClick={() => setPlaying(!playing)}
+            disabled={recording || requestingMedia}
           >
             {playing ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5 ml-0.5" />}
+            <span className="ml-1 hidden sm:inline">{playing ? 'Pause Preview' : 'Preview Scroll'}</span>
           </Button>
 
-          {/* Record button — big red circle */}
-          <button
-            onClick={recording ? stopRecording : startRecording}
-            disabled={!cameraActive}
-            className="h-16 w-16 rounded-full border-4 border-white flex items-center justify-center transition-all disabled:opacity-30"
-            aria-label={recording ? 'Stop recording' : 'Start recording'}
-          >
-            {recording ? (
-              <Square className="h-6 w-6 text-red-500 fill-red-500" />
-            ) : (
-              <Circle className="h-10 w-10 text-red-500 fill-red-500" />
-            )}
-          </button>
+          {/* Primary recording action */}
+          {recording ? (
+            <Button
+              onClick={stopRecording}
+              className="h-14 rounded-full bg-red-600 px-6 text-white hover:bg-red-700"
+              aria-label="Stop recording"
+            >
+              Stop Recording
+            </Button>
+          ) : (
+            <Button
+              onClick={startRecording}
+              disabled={requestingMedia}
+              className="h-14 rounded-full bg-red-600 px-6 text-white hover:bg-red-700"
+              aria-label="Start recording"
+            >
+              {requestingMedia ? 'Preparing...' : 'Start Recording'}
+            </Button>
+          )}
 
-          <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full text-white"
+          <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full text-white" aria-label="Forward"
             onClick={() => { if (scrollRef.current) scrollRef.current.scrollTop += speed * 100; }}>
             <SkipForward className="h-5 w-5" />
           </Button>
         </div>
+        {recordingError && (
+          <p className="px-4 pb-3 text-center text-xs text-red-200">{recordingError}</p>
+        )}
       </div>
+
+      {/* Leave confirmation during recording */}
+      <AlertDialog open={showLeaveDialog} onOpenChange={setShowLeaveDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Stop recording?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have an active recording. Leaving will stop and discard it.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Continue Recording</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={confirmLeave}
+            >
+              Stop & Leave
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
