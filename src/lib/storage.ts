@@ -89,7 +89,9 @@ function addRevision(scriptId: string, content: string): void {
     } else {
       localStorage.setItem(REVISIONS_KEY, JSON.stringify(all));
     }
-  } catch { }
+  } catch {
+    // Ignore revision persistence failures so editing can continue.
+  }
 }
 
 // Settings

@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getScripts, deleteScript, getAllTags } from '@/lib/storage';
+import { getScripts, deleteScript } from '@/lib/storage';
 import { Script } from '@/types/script';
 import { Plus, Search, Play, MoreVertical, Trash2, Edit, FileText, ArrowUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -33,7 +33,11 @@ const Home = () => {
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<SortOption>('updated');
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
-  const allTags = useMemo(() => getAllTags(), [scripts]);
+  const allTags = useMemo(() => {
+    const tags = new Set<string>();
+    scripts.forEach(script => script.tags.forEach(tag => tags.add(tag)));
+    return Array.from(tags).sort();
+  }, [scripts]);
 
   const filtered = useMemo(() => {
     let result = [...scripts];

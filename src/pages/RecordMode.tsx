@@ -6,10 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import {
   ArrowLeft, Play, Pause, SkipBack, SkipForward, FlipHorizontal,
-  Camera, SwitchCamera, Columns, Layers, Type, Circle, Square,
+  Camera, SwitchCamera, Columns, Layers, Type,
   Download,
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -45,10 +44,11 @@ const RecordMode = () => {
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [recordingError, setRecordingError] = useState<string | null>(null);
+  const [requestingMedia, setRequestingMedia] = useState(false);
 
   // Recording state
   const [recording, setRecording] = useState(false);
-  const [recordingPaused, setRecordingPaused] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [recordedVideoUrl, setRecordedVideoUrl] = useState<string | null>(null);
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
@@ -67,10 +67,26 @@ const RecordMode = () => {
 
   // Camera — request audio too so recordings have sound
   const startCamera = useCallback(async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      const message = 'Camera and microphone recording is not supported by this browser.';
+      setCameraError(message);
+      throw new Error(message);
+    }
+
     try {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(t => t.stop());
+      const activeStream = streamRef.current;
+      const hasLiveTracks = activeStream?.getTracks().some(track => track.readyState === 'live');
+      if (activeStream && hasLiveTracks) {
+        if (videoRef.current && videoRef.current.srcObject !== activeStream) {
+          videoRef.current.srcObject = activeStream;
+          await videoRef.current.play().catch(() => {});
+        }
+        setCameraActive(true);
+        setCameraError(null);
+        return activeStream;
       }
+
+      streamRef.current?.getTracks().forEach(t => t.stop());
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode, width: { ideal: 1920 }, height: { ideal: 1080 } },
         audio: true,
@@ -78,27 +94,35 @@ const RecordMode = () => {
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        await videoRef.current.play().catch(() => {});
       }
       setCameraActive(true);
       setCameraError(null);
+      return stream;
     } catch (err) {
-      setCameraError('Camera access denied. Please allow camera and microphone permissions.');
+      const message = err instanceof DOMException && err.name === 'NotAllowedError'
+        ? 'Camera or microphone permission was denied. Please allow both permissions to record.'
+        : 'Camera or microphone is unavailable. Please check your device and browser permissions.';
+      setCameraError(message);
       setCameraActive(false);
+      throw err;
     }
   }, [facingMode]);
 
-  useEffect(() => {
-    startCamera();
-    return () => {
-      streamRef.current?.getTracks().forEach(t => t.stop());
-    };
-  }, [startCamera]);
+  const stopCamera = useCallback(() => {
+    streamRef.current?.getTracks().forEach(t => t.stop());
+    streamRef.current = null;
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setCameraActive(false);
+  }, []);
 
   // Keep screen awake
   useEffect(() => {
-    let wakeLock: any = null;
+    let wakeLock: WakeLockSentinel | null = null;
     if ('wakeLock' in navigator) {
-      (navigator as any).wakeLock.request('screen').then((lock: any) => {
+      navigator.wakeLock.request('screen').then((lock) => {
         wakeLock = lock;
       }).catch(() => {});
     }
@@ -106,8 +130,23 @@ const RecordMode = () => {
   }, []);
 
   // Recording logic
-  const startRecording = useCallback(() => {
-    if (!streamRef.current) return;
+  const startRecording = useCallback(async () => {
+    if (requestingMedia || recording) return;
+    if (!window.MediaRecorder) {
+      setRecordingError('Video recording is not supported by this browser. Try Chrome, Edge, Safari 14.1+, or Firefox.');
+      return;
+    }
+
+    setRequestingMedia(true);
+    setRecordingError(null);
+
+    let stream: MediaStream;
+    try {
+      stream = await startCamera();
+    } catch {
+      setRequestingMedia(false);
+      return;
+    }
 
     // Clean up previous recording
     if (recordedVideoUrl) {
@@ -133,7 +172,7 @@ const RecordMode = () => {
     }
 
     try {
-      const recorder = new MediaRecorder(streamRef.current, {
+      const recorder = new MediaRecorder(stream, {
         mimeType: mimeType || undefined,
         videoBitsPerSecond: 4_000_000,
       });
@@ -148,11 +187,13 @@ const RecordMode = () => {
         setRecordedVideoUrl(url);
         setRecordedBlob(blob);
         chunksRef.current = [];
+        stopCamera();
       };
 
       recorder.start(1000); // collect data every second
       mediaRecorderRef.current = recorder;
       setRecording(true);
+      setCameraActive(true);
 
       // Start duration timer
       timerRef.current = setInterval(() => {
@@ -163,31 +204,13 @@ const RecordMode = () => {
       setPlaying(true);
     } catch (err) {
       console.error('Failed to start recording:', err);
-    }
-  }, [recordedVideoUrl]);
-
-  const pauseRecording = useCallback(() => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-      mediaRecorderRef.current.pause();
-      setRecordingPaused(true);
+      setRecordingError('Recording could not be started on this browser or device.');
       setPlaying(false);
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = undefined;
-      }
+      stopCamera();
+    } finally {
+      setRequestingMedia(false);
     }
-  }, []);
-
-  const resumeRecording = useCallback(() => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'paused') {
-      mediaRecorderRef.current.resume();
-      setRecordingPaused(false);
-      setPlaying(true);
-      timerRef.current = setInterval(() => {
-        setRecordingDuration(d => d + 1);
-      }, 1000);
-    }
-  }, []);
+  }, [recordedVideoUrl, recording, requestingMedia, startCamera, stopCamera]);
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
@@ -195,7 +218,6 @@ const RecordMode = () => {
     }
     mediaRecorderRef.current = null;
     setRecording(false);
-    setRecordingPaused(false);
     setPlaying(false);
 
     if (timerRef.current) {
@@ -226,8 +248,9 @@ const RecordMode = () => {
       }
       if (timerRef.current) clearInterval(timerRef.current);
       if (recordedVideoUrl) URL.revokeObjectURL(recordedVideoUrl);
+      stopCamera();
     };
-  }, [recordedVideoUrl]);
+  }, [recordedVideoUrl, stopCamera]);
 
   const [saving, setSaving] = useState(false);
 
@@ -337,7 +360,7 @@ const RecordMode = () => {
   return (
     <div className="relative flex min-h-screen flex-col bg-black overflow-hidden">
       {/* Camera preview */}
-      <div className={`${splitView ? 'h-1/2' : 'absolute inset-0'} bg-black`}>
+      <div className={`${splitView ? 'h-1/2' : 'absolute inset-0'} z-0 bg-black`}>
         <video
           ref={videoRef}
           autoPlay
@@ -351,7 +374,7 @@ const RecordMode = () => {
             <div className="text-center">
               <Camera className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
               <p className="text-sm text-muted-foreground">{cameraError}</p>
-              <Button className="mt-3" size="sm" onClick={startCamera}>Retry</Button>
+              <Button className="mt-3" size="sm" onClick={() => startCamera().catch(() => {})}>Retry</Button>
             </div>
           </div>
         )}
@@ -360,9 +383,9 @@ const RecordMode = () => {
       {/* Recording indicator */}
       {recording && (
         <div className="absolute top-14 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-black/70 rounded-full px-4 py-1.5">
-          <div className={`h-3 w-3 rounded-full ${recordingPaused ? 'bg-yellow-500' : 'bg-red-500 animate-pulse'}`} />
+          <div className="h-3 w-3 rounded-full bg-red-500 animate-pulse" />
           <span className="text-white text-sm font-mono font-medium">
-            {recordingPaused ? 'PAUSED' : 'REC'} {formatDuration(recordingDuration)}
+            Recording... {formatDuration(recordingDuration)}
           </span>
         </div>
       )}
@@ -370,9 +393,9 @@ const RecordMode = () => {
       {/* Script overlay / split view */}
       <div
         ref={scrollRef}
-        className={`${splitView ? 'h-1/2' : 'absolute inset-0'} overflow-y-auto`}
+        className={`${splitView ? 'h-1/2' : 'absolute inset-0'} z-10 overflow-y-auto`}
         style={{
-          backgroundColor: splitView ? currentTheme.bg : `${currentTheme.bg}99`,
+          backgroundColor: splitView ? currentTheme.bg : `${currentTheme.bg}${cameraActive ? '66' : '99'}`,
           color: currentTheme.fg,
           transform: mirrored ? 'scaleX(-1)' : 'none',
         }}
@@ -474,47 +497,36 @@ const RecordMode = () => {
             <SkipBack className="h-5 w-5" />
           </Button>
 
-          {/* Teleprompter play/pause */}
+          {/* Teleprompter preview only */}
           <Button
-            size="icon"
-            className="h-12 w-12 rounded-full bg-white/20 text-white"
-            aria-label={playing ? 'Pause teleprompter' : 'Play teleprompter'}
+            size="sm"
+            className="h-11 rounded-full bg-white/20 px-4 text-white"
+            aria-label={playing ? 'Pause preview scroll' : 'Preview scroll'}
             onClick={() => setPlaying(!playing)}
+            disabled={recording || requestingMedia}
           >
             {playing ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5 ml-0.5" />}
+            <span className="ml-1 hidden sm:inline">{playing ? 'Pause Preview' : 'Preview Scroll'}</span>
           </Button>
 
-          {/* Record button — big red circle */}
+          {/* Primary recording action */}
           {recording ? (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={recordingPaused ? resumeRecording : pauseRecording}
-                className="h-12 w-12 rounded-full border-4 border-yellow-500 flex items-center justify-center transition-all"
-                aria-label={recordingPaused ? 'Resume recording' : 'Pause recording'}
-              >
-                {recordingPaused ? (
-                  <Play className="h-5 w-5 text-yellow-500 fill-yellow-500 ml-0.5" />
-                ) : (
-                  <Pause className="h-5 w-5 text-yellow-500" />
-                )}
-              </button>
-              <button
-                onClick={stopRecording}
-                className="h-16 w-16 rounded-full border-4 border-white flex items-center justify-center transition-all"
-                aria-label="Stop recording"
-              >
-                <Square className="h-6 w-6 text-red-500 fill-red-500" />
-              </button>
-            </div>
+            <Button
+              onClick={stopRecording}
+              className="h-14 rounded-full bg-red-600 px-6 text-white hover:bg-red-700"
+              aria-label="Stop recording"
+            >
+              Stop Recording
+            </Button>
           ) : (
-            <button
+            <Button
               onClick={startRecording}
-              disabled={!cameraActive}
-              className="h-16 w-16 rounded-full border-4 border-white flex items-center justify-center transition-all disabled:opacity-30"
+              disabled={requestingMedia}
+              className="h-14 rounded-full bg-red-600 px-6 text-white hover:bg-red-700"
               aria-label="Start recording"
             >
-              <Circle className="h-10 w-10 text-red-500 fill-red-500" />
-            </button>
+              {requestingMedia ? 'Preparing...' : 'Start Recording'}
+            </Button>
           )}
 
           <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full text-white" aria-label="Forward"
@@ -522,6 +534,9 @@ const RecordMode = () => {
             <SkipForward className="h-5 w-5" />
           </Button>
         </div>
+        {recordingError && (
+          <p className="px-4 pb-3 text-center text-xs text-red-200">{recordingError}</p>
+        )}
       </div>
 
       {/* Leave confirmation during recording */}
