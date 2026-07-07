@@ -7,14 +7,17 @@ import {
   signOut as firebaseSignOut,
   getRedirectResult,
 } from 'firebase/auth';
+import { Capacitor } from '@capacitor/core';
 import { auth, googleProvider, appleProvider, firebaseConfigured } from './firebase';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  actionLoading: 'google' | 'apple' | 'email' | null;
   error: string | null;
   signInWithGoogle: () => Promise<void>;
   signInWithApple: () => Promise<void>;
+  requestEmailLink: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
   skipAuth: () => void;
   isGuest: boolean;
@@ -28,6 +31,7 @@ const GUEST_KEY = 'cuevora_guest_mode';
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState<AuthContextType['actionLoading']>(null);
   const [error, setError] = useState<string | null>(null);
   const [isGuest, setIsGuest] = useState(() => {
     try {
@@ -66,7 +70,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signInWithGoogle = useCallback(async () => {
     if (!auth) { setError('Firebase not configured'); return; }
     setError(null);
+    setActionLoading('google');
     try {
+      if (Capacitor.isNativePlatform()) {
+        await signInWithRedirect(auth, googleProvider);
+        return;
+      }
       await signInWithPopup(auth, googleProvider);
     } catch (popupError: unknown) {
       const err = popupError as { code?: string };
@@ -81,13 +90,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const pErr = popupError as { message?: string };
         setError(pErr.message || 'Failed to sign in with Google');
       }
+    } finally {
+      setActionLoading(null);
     }
   }, []);
 
   const signInWithApple = useCallback(async () => {
     if (!auth) { setError('Firebase not configured'); return; }
     setError(null);
+    setActionLoading('apple');
     try {
+      if (Capacitor.isNativePlatform()) {
+        await signInWithRedirect(auth, appleProvider);
+        return;
+      }
       await signInWithPopup(auth, appleProvider);
     } catch (popupError: unknown) {
       const err = popupError as { code?: string };
@@ -102,6 +118,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const pErr = popupError as { message?: string };
         setError(pErr.message || 'Failed to sign in with Apple');
       }
+    } finally {
+      setActionLoading(null);
+    }
+  }, []);
+
+  const requestEmailLink = useCallback(async (email: string) => {
+    setActionLoading('email');
+    setError(null);
+    try {
+      if (!firebaseConfigured || !auth) {
+        setError('Email sign-in needs Firebase Authentication to be configured first.');
+        return;
+      }
+      if (!email.includes('@')) {
+        setError('Enter a valid email address.');
+        return;
+      }
+      setError('Passwordless email sign-in is prepared for Firebase, but the release needs an approved action-code URL before it can be enabled.');
+    } finally {
+      setActionLoading(null);
     }
   }, []);
 
@@ -128,9 +164,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         user,
         loading,
+        actionLoading,
         error,
         signInWithGoogle,
         signInWithApple,
+        requestEmailLink,
         signOut,
         skipAuth,
         isGuest,

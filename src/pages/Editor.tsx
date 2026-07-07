@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { getScript, saveScript, getRevisions, getWordCount, getReadTime, getSettings, getAllTags } from '@/lib/storage';
+import { getScript, saveScript, getRevisions, getWordCount, getReadTime, getSettings } from '@/lib/storage';
+import { haptic } from '@/lib/haptics';
 import { Script, ScriptRevision } from '@/types/script';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,16 +13,6 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from '@/components/ui/dialog';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 
 const Editor = () => {
@@ -37,18 +28,10 @@ const Editor = () => {
   const [scriptId, setScriptId] = useState<string | null>(null);
   const [revisions, setRevisions] = useState<ScriptRevision[]>([]);
   const [showHistory, setShowHistory] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [dirty, setDirty] = useState(false);
-  const [showLeaveDialog, setShowLeaveDialog] = useState(false);
-  const [tagFocused, setTagFocused] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'offline' | 'error'>(
+    navigator.onLine ? 'idle' : 'offline',
+  );
   const saveTimeout = useRef<ReturnType<typeof setTimeout>>();
-  const allTags = getAllTags();
-
-  const tagSuggestions = useMemo(() => {
-    if (!newTag.trim() || !tagFocused) return [];
-    const q = newTag.toLowerCase();
-    return allTags.filter(t => t.toLowerCase().includes(q) && !tags.includes(t)).slice(0, 5);
-  }, [newTag, allTags, tags, tagFocused]);
 
   useEffect(() => {
     if (!isNew && id) {
@@ -63,38 +46,42 @@ const Editor = () => {
     }
   }, [id, isNew]);
 
+  useEffect(() => {
+    const updateOnlineStatus = () => setSaveStatus(navigator.onLine ? 'idle' : 'offline');
+    window.addEventListener('online', updateOnlineStatus);
+    window.addEventListener('offline', updateOnlineStatus);
+    return () => {
+      window.removeEventListener('online', updateOnlineStatus);
+      window.removeEventListener('offline', updateOnlineStatus);
+    };
+  }, []);
+
+  useEffect(() => {
+    const warnOnExit = (event: BeforeUnloadEvent) => {
+      if (saveStatus === 'saving') {
+        event.preventDefault();
+        event.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', warnOnExit);
+    return () => window.removeEventListener('beforeunload', warnOnExit);
+  }, [saveStatus]);
+
   const autoSave = useCallback((t: string, c: string, tg: string[]) => {
-    setDirty(true);
     if (saveTimeout.current) clearTimeout(saveTimeout.current);
+    setSaveStatus(navigator.onLine ? 'saving' : 'offline');
     saveTimeout.current = setTimeout(() => {
-      const saved = saveScript({ id: scriptId || undefined, title: t || 'Untitled Script', content: c, tags: tg });
-      if (!scriptId) setScriptId(saved.id);
-      setDirty(false);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 1500);
+      try {
+        const saved = saveScript({ id: scriptId || undefined, title: t || 'Untitled Script', content: c, tags: tg });
+        if (!scriptId) setScriptId(saved.id);
+        setSaveStatus('saved');
+        void haptic('selection');
+      } catch {
+        setSaveStatus('error');
+        toast.error('Error saving. Your changes are still on screen.');
+      }
     }, 800);
   }, [scriptId]);
-
-  const handleBack = useCallback(() => {
-    if (dirty) {
-      setShowLeaveDialog(true);
-    } else {
-      navigate('/home');
-    }
-  }, [dirty, navigate]);
-
-  const forceLeave = useCallback(() => {
-    if (saveTimeout.current) clearTimeout(saveTimeout.current);
-    setShowLeaveDialog(false);
-    navigate('/home');
-  }, [navigate]);
-
-  const saveAndLeave = useCallback(() => {
-    if (saveTimeout.current) clearTimeout(saveTimeout.current);
-    saveScript({ id: scriptId || undefined, title: title || 'Untitled Script', content, tags });
-    setShowLeaveDialog(false);
-    navigate('/home');
-  }, [scriptId, title, content, tags, navigate]);
 
   const handleTitleChange = (v: string) => { setTitle(v); autoSave(v, content, tags); };
   const handleContentChange = (v: string) => { setContent(v); autoSave(title, v, tags); };
@@ -145,11 +132,13 @@ const Editor = () => {
     a.click();
     URL.revokeObjectURL(url);
     toast.success('Exported as .txt');
+    void haptic('light');
   };
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(content);
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(content);
     toast.success('Copied to clipboard');
+    void haptic('light');
   };
 
   const restoreRevision = (rev: ScriptRevision) => {
@@ -164,17 +153,30 @@ const Editor = () => {
   const readTimeMin = Math.floor(readTimeSec / 60);
   const readTimeSecs = readTimeSec % 60;
 
+  const saveStatusLabel = {
+    idle: 'Autosave on',
+    saving: 'Saving...',
+    saved: 'Saved',
+    offline: 'Offline',
+    error: 'Error saving',
+  }[saveStatus];
+
+  const goBack = () => {
+    if (saveStatus === 'saving' && !window.confirm('Cuevora is still saving. Leave this editor?')) return;
+    navigate('/home');
+  };
+
   return (
     <div className="flex min-h-screen flex-col bg-background safe-area-padding">
       {/* Header */}
       <div className="flex items-center gap-2 px-4 pb-2" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top, 0px))' }}>
-        <Button variant="ghost" size="icon" className="touch-target text-foreground" aria-label="Back" onClick={handleBack}>
+        <Button variant="ghost" size="icon" className="touch-target text-white" onClick={goBack} aria-label="Back to scripts">
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div className="flex-1" />
         <div className="flex items-center gap-1 text-xs text-muted-foreground">
-          {saved && <Check className="h-3 w-3 text-violet-400" />}
-          {saved ? 'Saved' : 'Autosave on'}
+          {saveStatus === 'saved' && <Check className="h-3 w-3 text-violet-400" />}
+          {saveStatusLabel}
         </div>
       </div>
 
@@ -195,29 +197,14 @@ const Editor = () => {
             {t} <X className="h-3 w-3" />
           </Badge>
         ))}
-        <div className="relative">
+        <div className="flex items-center gap-1">
           <Input
             value={newTag}
             onChange={e => setNewTag(e.target.value)}
-            onFocus={() => setTagFocused(true)}
-            onBlur={() => setTimeout(() => setTagFocused(false), 150)}
             onKeyDown={e => e.key === 'Enter' && addTag()}
             placeholder="Add tag..."
             className="h-7 w-24 text-xs bg-transparent border-dashed"
           />
-          {tagSuggestions.length > 0 && (
-            <div className="absolute top-full left-0 mt-1 z-50 bg-popover border border-border rounded-md shadow-md py-1 min-w-[120px]">
-              {tagSuggestions.map(t => (
-                <button
-                  key={t}
-                  className="w-full text-left px-3 py-1.5 text-xs text-foreground hover:bg-accent transition-colors"
-                  onMouseDown={(e) => { e.preventDefault(); setNewTag(''); const updated = [...tags, t]; setTags(updated); autoSave(title, content, updated); }}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
-          )}
         </div>
       </div>
 
@@ -242,28 +229,31 @@ const Editor = () => {
       </div>
 
       {/* Actions */}
-      <div className="flex items-center gap-2 px-5 py-4 border-t border-border" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}>
+      <div className="flex items-center gap-2 px-5 py-4 border-t border-white/10" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}>
         {scriptId && (
           <Button
             className="flex-1 touch-target bg-violet-600 hover:bg-violet-700 text-white"
-            onClick={() => navigate(`/player/${scriptId}`)}
+            onClick={() => {
+              void haptic('medium');
+              navigate(`/player/${scriptId}`);
+            }}
           >
             <Play className="h-4 w-4 mr-2" /> Prompt
           </Button>
         )}
-        <Button variant="outline" size="icon" className="touch-target" aria-label="Import file" onClick={handleImportTxt}>
+        <Button variant="outline" size="icon" className="touch-target border-white/20 text-white hover:bg-white/10" onClick={handleImportTxt} aria-label="Import text file">
           <Upload className="h-4 w-4" />
         </Button>
-        <Button variant="outline" size="icon" className="touch-target" aria-label="Export file" onClick={handleExportTxt}>
+        <Button variant="outline" size="icon" className="touch-target border-white/20 text-white hover:bg-white/10" onClick={handleExportTxt} aria-label="Export as text file">
           <Download className="h-4 w-4" />
         </Button>
-        <Button variant="outline" size="icon" className="touch-target" aria-label="Copy to clipboard" onClick={handleCopy}>
+        <Button variant="outline" size="icon" className="touch-target border-white/20 text-white hover:bg-white/10" onClick={handleCopy} aria-label="Copy script to clipboard">
           <Copy className="h-4 w-4" />
         </Button>
 
         <Dialog open={showHistory} onOpenChange={setShowHistory}>
           <DialogTrigger asChild>
-            <Button variant="outline" size="icon" className="touch-target" aria-label="Version history">
+            <Button variant="outline" size="icon" className="touch-target border-white/20 text-white hover:bg-white/10" aria-label="Open version history">
               <History className="h-4 w-4" />
             </Button>
           </DialogTrigger>
@@ -292,22 +282,6 @@ const Editor = () => {
           </DialogContent>
         </Dialog>
       </div>
-
-      {/* Unsaved changes dialog */}
-      <AlertDialog open={showLeaveDialog} onOpenChange={setShowLeaveDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Unsaved changes</AlertDialogTitle>
-            <AlertDialogDescription>
-              You have unsaved changes. Would you like to save before leaving?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={forceLeave}>Discard</AlertDialogCancel>
-            <AlertDialogAction onClick={saveAndLeave}>Save & Leave</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 };

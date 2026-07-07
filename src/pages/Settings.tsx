@@ -1,14 +1,15 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getSettings, saveSettings, exportBackup, importBackup } from '@/lib/storage';
-import { AppSettings, PLAYER_THEMES, PlayerTheme, ColorMode, DEFAULT_SETTINGS } from '@/types/script';
+import { getSettings, saveSettings, exportBackup, importBackup, clearLocalData } from '@/lib/storage';
+import { haptic } from '@/lib/haptics';
+import { AppSettings, PLAYER_THEMES, PlayerTheme, ColorMode } from '@/types/script';
 import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { resolveLegalUrl } from '@/lib/utils';
-import { ArrowLeft, Download, Upload, Shield, MessageSquare, LogOut, User, Sun, Moon, Monitor, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Download, Upload, Shield, MessageSquare, LogOut, User, Sun, Moon, Monitor, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 const Settings = () => {
@@ -21,6 +22,7 @@ const Settings = () => {
   const update = (partial: Partial<AppSettings>) => {
     const updated = saveSettings(partial);
     setSettings(updated);
+    void haptic('selection');
   };
 
   const handleBackup = () => {
@@ -33,6 +35,7 @@ const Settings = () => {
     a.click();
     URL.revokeObjectURL(url);
     toast.success('Backup exported');
+    void haptic('light');
   };
 
   const handleRestore = () => {
@@ -48,6 +51,7 @@ const Settings = () => {
           if (success) {
             setSettings(getSettings());
             toast.success('Backup restored');
+            void haptic('medium');
           } else {
             toast.error('Invalid backup file');
           }
@@ -58,25 +62,105 @@ const Settings = () => {
     input.click();
   };
 
+  const handleClearLocalData = async () => {
+    if (!window.confirm('Clear all local Cuevora scripts, settings and revisions from this device? This cannot be undone unless you have exported a backup.')) return;
+    await haptic('warning');
+    clearLocalData();
+    setSettings(getSettings());
+    toast.success('Local app data cleared');
+    navigate('/login', { replace: true });
+  };
+
   return (
     <div className="flex min-h-screen flex-col bg-background safe-area-padding">
       {/* Header */}
       <div className="flex items-center gap-2 px-4 pb-2" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top, 0px))' }}>
-        <Button variant="ghost" size="icon" className="touch-target text-foreground" aria-label="Back" onClick={() => navigate('/home')}>
+        <Button variant="ghost" size="icon" className="touch-target text-white" onClick={() => navigate('/home')}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <h1 className="text-lg font-bold text-foreground">Settings</h1>
       </div>
 
       <div className="flex-1 overflow-y-auto px-5 py-4 space-y-6">
+        {/* Account */}
+        <Section title="Account">
+          <div className="rounded-xl bg-card p-4 border border-border/50">
+            <div className="flex items-center gap-3">
+              {user?.photoURL ? (
+                <img src={user.photoURL} alt="" className="h-10 w-10 rounded-full" />
+              ) : (
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+                  <User className="h-5 w-5 text-primary" />
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-foreground truncate">
+                  {user?.displayName || (isGuest ? 'Guest User' : 'Not signed in')}
+                </p>
+                <p className="text-xs text-muted-foreground truncate">
+                  {user?.email || (isGuest ? 'Data stored locally only' : 'Sign in is optional')}
+                </p>
+              </div>
+            </div>
+          </div>
+          {user ? (
+            <>
+              <Button
+                variant="outline"
+                className="w-full touch-target justify-start text-destructive"
+                onClick={async () => {
+                  await signOut();
+                  navigate('/login', { replace: true });
+                }}
+              >
+                <LogOut className="h-4 w-4 mr-2" /> Sign Out
+              </Button>
+              <Button variant="outline" className="w-full touch-target justify-start" asChild>
+                <a href="mailto:ibimbraide@gmail.com?subject=Cuevora%20account%20deletion%20request">
+                  <Trash2 className="h-4 w-4 mr-2" /> Request Account Deletion
+                </a>
+              </Button>
+            </>
+          ) : isGuest ? (
+            <Button
+              variant="outline"
+              className="w-full touch-target justify-start"
+              onClick={() => navigate('/login', { replace: true })}
+            >
+              <User className="h-4 w-4 mr-2" /> Sign In
+            </Button>
+          ) : null}
+        </Section>
+
+        <Section title="Appearance">
+          <SettingRow label="Colour Mode">
+            <div className="flex gap-1.5">
+              {([{ key: 'system', label: 'System', icon: Monitor }, { key: 'light', label: 'Light', icon: Sun }, { key: 'dark', label: 'Dark', icon: Moon }] as const).map(({ key, label, icon: Icon }) => (
+                <button
+                  key={key}
+                  className={`flex min-h-11 items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                    settings.colorMode === key
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-secondary text-secondary-foreground'
+                  }`}
+                  onClick={() => update({ colorMode: key as ColorMode })}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  {label}
+                </button>
+              ))}
+            </div>
+          </SettingRow>
+        </Section>
+
         {/* Defaults */}
-        <Section title="Defaults">
+        <Section title="Teleprompter Defaults">
           <SettingRow label="Default Theme">
             <div className="flex gap-1.5">
               {(Object.keys(PLAYER_THEMES) as PlayerTheme[]).map(key => (
                 <button
                   key={key}
-                  className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                  className={`min-h-11 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
                     settings.defaultTheme === key
                       ? 'bg-primary text-primary-foreground'
                       : 'bg-secondary text-secondary-foreground'
@@ -114,30 +198,27 @@ const Settings = () => {
           </SettingRow>
 
           <SettingRow label="Words Per Minute">
-            <div className="flex items-center gap-2">
-              <Input
-                type="number"
-                value={settings.wpm}
-                onChange={e => update({ wpm: Number(e.target.value) || 140 })}
-                className="w-20 text-right bg-surface"
-              />
-              <span className="text-[10px] text-muted-foreground">Avg: 130–150</span>
-            </div>
+            <Input
+              type="number"
+              value={settings.wpm}
+              onChange={e => update({ wpm: Number(e.target.value) || 140 })}
+              className="w-20 text-right bg-surface"
+            />
           </SettingRow>
 
           <SettingRow label="Countdown Duration">
             <div className="flex gap-1.5">
-              {([0, 3, 5, 10] as const).map(v => (
+              {([3, 5, 10] as const).map(v => (
                 <button
                   key={v}
-                  className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                  className={`min-h-11 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
                     settings.countdownDuration === v
                       ? 'bg-primary text-primary-foreground'
                       : 'bg-secondary text-secondary-foreground'
                   }`}
-                  onClick={() => update({ countdownDuration: v as 0 | 3 | 5 | 10 })}
+                  onClick={() => update({ countdownDuration: v })}
                 >
-                  {v === 0 ? 'Off' : `${v}s`}
+                  {v}s
                 </button>
               ))}
             </div>
@@ -145,25 +226,7 @@ const Settings = () => {
         </Section>
 
         {/* Display */}
-        <Section title="Display">
-          <SettingRow label="Appearance">
-            <div className="flex gap-1.5">
-              {([{ key: 'system', label: 'System', icon: Monitor }, { key: 'light', label: 'Light', icon: Sun }, { key: 'dark', label: 'Dark', icon: Moon }] as const).map(({ key, label, icon: Icon }) => (
-                <button
-                  key={key}
-                  className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                    settings.colorMode === key
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-secondary text-secondary-foreground'
-                  }`}
-                  onClick={() => update({ colorMode: key as ColorMode })}
-                >
-                  <Icon className="h-3.5 w-3.5" />
-                  {label}
-                </button>
-              ))}
-            </div>
-          </SettingRow>
+        <Section title="Recording and Controls">
           <SettingRow label="Keep Screen Awake" inline>
             <Switch checked={settings.keepScreenAwake} onCheckedChange={v => update({ keepScreenAwake: v })} />
           </SettingRow>
@@ -173,10 +236,19 @@ const Settings = () => {
           <SettingRow label="Focus Line" inline>
             <Switch checked={settings.focusLineEnabled} onCheckedChange={v => update({ focusLineEnabled: v })} />
           </SettingRow>
+          <SettingRow label="Haptics" inline>
+            <Switch checked={settings.hapticsEnabled} onCheckedChange={v => update({ hapticsEnabled: v })} />
+          </SettingRow>
+          <SettingRow label="Gesture Controls" inline>
+            <Switch checked={settings.gestureControlsEnabled} onCheckedChange={v => update({ gestureControlsEnabled: v })} />
+          </SettingRow>
+          <SettingRow label="Voice Controls" inline>
+            <Switch checked={settings.voiceControlsEnabled} onCheckedChange={v => update({ voiceControlsEnabled: v })} />
+          </SettingRow>
         </Section>
 
         {/* Data */}
-        <Section title="Data & Backup">
+        <Section title="Storage and Backup">
           <div className="flex gap-2">
             <Button variant="outline" className="flex-1 touch-target" onClick={handleBackup}>
               <Download className="h-4 w-4 mr-2" /> Export Backup
@@ -185,16 +257,8 @@ const Settings = () => {
               <Upload className="h-4 w-4 mr-2" /> Restore
             </Button>
           </div>
-          <Button
-            variant="ghost"
-            className="w-full touch-target justify-start text-muted-foreground"
-            onClick={() => {
-              const { onboardingComplete, ...defaults } = DEFAULT_SETTINGS;
-              update(defaults);
-              toast.success('Settings reset to defaults');
-            }}
-          >
-            <RotateCcw className="h-4 w-4 mr-2" /> Reset to Defaults
+          <Button variant="outline" className="w-full touch-target justify-start text-destructive" onClick={handleClearLocalData}>
+            <Trash2 className="h-4 w-4 mr-2" /> Clear Local Data
           </Button>
         </Section>
 
@@ -238,56 +302,21 @@ const Settings = () => {
           </Section>
         )}
 
-        {/* Account */}
-        <Section title="Account">
-          <div className="rounded-xl bg-card p-4 border border-border/50">
-            <div className="flex items-center gap-3">
-              {user?.photoURL ? (
-                <img src={user.photoURL} alt="" className="h-10 w-10 rounded-full" />
-              ) : (
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-                  <User className="h-5 w-5 text-primary" />
-                </div>
-              )}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-foreground truncate">
-                  {user?.displayName || (isGuest ? 'Guest User' : 'Not signed in')}
-                </p>
-                <p className="text-xs text-muted-foreground truncate">
-                  {user?.email || (isGuest ? 'Data stored locally only' : '')}
-                </p>
-              </div>
-            </div>
-          </div>
-          {user ? (
-            <Button
-              variant="outline"
-              className="w-full touch-target justify-start text-destructive"
-              onClick={async () => {
-                await signOut();
-                navigate('/login', { replace: true });
-              }}
-            >
-              <LogOut className="h-4 w-4 mr-2" /> Sign Out
-            </Button>
-          ) : isGuest ? (
-            <Button
-              variant="outline"
-              className="w-full touch-target justify-start"
-              onClick={() => navigate('/login', { replace: true })}
-            >
-              <User className="h-4 w-4 mr-2" /> Sign In to Sync
-            </Button>
-          ) : null}
-        </Section>
-
         {/* Support */}
-        <Section title="Support">
+        <Section title="Feedback">
           <Button variant="outline" className="w-full touch-target justify-start" asChild>
             <a href="mailto:ibimbraide@gmail.com">
               <MessageSquare className="h-4 w-4 mr-2" /> Send Feedback
             </a>
           </Button>
+        </Section>
+
+        <Section title="About Cuevora">
+          <div className="rounded-xl bg-card p-4 border border-border/50 text-sm text-muted-foreground">
+            <p className="font-medium text-foreground">Cuevora v1.0.0</p>
+            <p>Build 1 · Package app.cuevora.teleprompter</p>
+            <p className="mt-2">Offline-first teleprompter for creators, speakers and professionals.</p>
+          </div>
         </Section>
 
         <p className="text-center text-xs text-muted-foreground pb-8">

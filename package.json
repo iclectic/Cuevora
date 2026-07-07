@@ -20,7 +20,10 @@
     "cap:open:android": "cap open android",
     "build:mobile": "vite build && cap sync",
     "build:ios": "vite build && cap sync ios && cap open ios",
-    "build:android": "vite build && cap sync android && cap open android"
+    "build:android": "vite build && cap sync android && cap open android",
+    "android:lint": "cd android && ./gradlew lint",
+    "android:test": "cd android && ./gradlew test",
+    "android:bundle": "cd android && ./gradlew bundleRelease"
   },
   "dependencies": {
     "@capacitor/android": "^8.1.0",

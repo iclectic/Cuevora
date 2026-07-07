@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { getScript, getSettings } from '@/lib/storage';
+import { haptic } from '@/lib/haptics';
 import { PLAYER_THEMES, PlayerTheme } from '@/types/script';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
@@ -137,6 +138,7 @@ const RecordMode = () => {
       return;
     }
 
+    void haptic('medium');
     setRequestingMedia(true);
     setRecordingError(null);
 
@@ -213,6 +215,7 @@ const RecordMode = () => {
   }, [recordedVideoUrl, recording, requestingMedia, startCamera, stopCamera]);
 
   const stopRecording = useCallback(() => {
+    void haptic('medium');
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
     }
@@ -300,6 +303,7 @@ const RecordMode = () => {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
       }
+      void haptic('light');
     } catch (err) {
       console.error('Failed to save recording:', err);
       alert('Failed to save recording. Please try again.');
@@ -350,7 +354,12 @@ const RecordMode = () => {
   if (!script) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
-        <p className="text-muted-foreground">Script not found</p>
+        <div className="max-w-sm p-6 text-center">
+          <Camera className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
+          <h1 className="mb-2 text-lg font-semibold text-foreground">Script not found</h1>
+          <p className="mb-4 text-sm text-muted-foreground">The script may have been deleted or could not be loaded.</p>
+          <Button onClick={() => navigate('/home')}>Back to Scripts</Button>
+        </div>
       </div>
     );
   }
@@ -374,7 +383,11 @@ const RecordMode = () => {
             <div className="text-center">
               <Camera className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
               <p className="text-sm text-muted-foreground">{cameraError}</p>
-              <Button className="mt-3" size="sm" onClick={() => startCamera().catch(() => {})}>Retry</Button>
+              <p className="mt-2 text-xs text-muted-foreground">Open Android Settings if permissions were denied permanently, then return and retry.</p>
+              <div className="mt-3 flex justify-center gap-2">
+                <Button size="sm" onClick={() => startCamera().catch(() => {})}>Retry</Button>
+                <Button size="sm" variant="outline" onClick={() => navigate(-1)}>Back</Button>
+              </div>
             </div>
           </div>
         )}
