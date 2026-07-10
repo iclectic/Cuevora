@@ -18,6 +18,9 @@ dist-ssr
 .env.local
 .env.*.local
 
+# Local Firebase Android config
+android/app/google-services.json
+
 # Capacitor native projects (generated)
 ios/
 

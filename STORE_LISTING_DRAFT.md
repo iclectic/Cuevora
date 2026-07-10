@@ -17,6 +17,9 @@ Key features:
 - Focus line, countdown and progress indicator
 - Font size, line spacing and theme controls
 - Gesture controls and Bluetooth keyboard shortcuts
+- Adaptive voice-follow scrolling with fixed-speed fallback
+- Local rehearsal reports with pacing, pause, filler-word and completion feedback where speech recognition is supported
+- Accessibility profiles for low vision, dyslexia-friendly reading, calm focus, captions and simpler controls
 - Camera overlay and dedicated record mode
 - Script editor with auto-save, word count and read-time estimates
 - Tags, search, pull-to-refresh, sorting and compact or detailed library views
@@ -29,6 +32,8 @@ Key features:
 - Privacy-first design with no ads and no analytics by default
 
 Cuevora keeps core workflows on-device. Your scripts are stored locally unless future sync is intentionally enabled and clearly disclosed.
+
+Current listing boundary: do not add claims for cloud AI script writing, AI-powered coaching, local speech-to-text model downloads, eye-contact coaching, producer remote control or cloud script sync until those features are implemented, tested and reflected in the privacy inventory.
 
 ## Target Audience
 
@@ -54,5 +59,16 @@ Initial Android release:
 - Smooth teleprompter player with gesture guide, keyboard shortcuts and haptics
 - Camera overlay and recording mode with clearer permission handling
 - Backup, restore and clear-local-data tools
+- Adaptive scroll option, local rehearsal reports and accessibility profiles
 - Guest mode and optional Firebase Auth readiness
 - Play Store privacy and release documentation
+
+## Future Listing Candidates
+
+The following ideas are intentionally excluded from the first listing until implemented and reviewed:
+
+- AI-assisted script writing or rehearsal feedback
+- Local speech-to-text model downloads
+- Eye-contact coaching
+- Producer remote control
+- Cloud sync

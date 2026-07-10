@@ -1,8 +1,10 @@
 import { Script, ScriptRevision, AppSettings, DEFAULT_SETTINGS } from '@/types/script';
+import { RehearsalSession, SpeechTranscriptEvent } from '@/types/studio';
 
 const SCRIPTS_KEY = 'cuevora_scripts';
 const REVISIONS_KEY = 'cuevora_revisions';
 const SETTINGS_KEY = 'cuevora_settings';
+const REHEARSAL_SESSIONS_KEY = 'cuevora_rehearsal_sessions';
 const STORAGE_VERSION_KEY = 'cuevora_storage_version';
 const STORAGE_VERSION = 1;
 const MAX_REVISIONS = 10;
@@ -59,6 +61,62 @@ function normaliseRevision(value: unknown): ScriptRevision | null {
 function normaliseSettings(value: unknown): AppSettings {
   if (!isRecord(value)) return { ...DEFAULT_SETTINGS };
   return { ...DEFAULT_SETTINGS, ...value } as AppSettings;
+}
+
+function normaliseTranscriptEvent(value: unknown): SpeechTranscriptEvent | null {
+  if (!isRecord(value)) return null;
+  if (typeof value.transcript !== 'string') return null;
+  if (typeof value.timestamp !== 'number') return null;
+  return {
+    transcript: value.transcript,
+    confidence: typeof value.confidence === 'number' ? value.confidence : 0,
+    isFinal: typeof value.isFinal === 'boolean' ? value.isFinal : true,
+    timestamp: value.timestamp,
+    source: 'web-speech',
+  };
+}
+
+function normaliseRehearsalSession(value: unknown): RehearsalSession | null {
+  if (!isRecord(value)) return null;
+  if (typeof value.id !== 'string' || typeof value.scriptId !== 'string') return null;
+  if (!isRecord(value.metrics)) return null;
+
+  const transcriptEvents = Array.isArray(value.transcriptEvents)
+    ? value.transcriptEvents.map(normaliseTranscriptEvent).filter((event): event is SpeechTranscriptEvent => Boolean(event))
+    : [];
+
+  if (Array.isArray(value.transcriptEvents) && transcriptEvents.length !== value.transcriptEvents.length) {
+    return null;
+  }
+
+  const metrics = value.metrics;
+  const unavailableMetrics = Array.isArray(metrics.unavailableMetrics)
+    ? metrics.unavailableMetrics.filter((metric): metric is string => typeof metric === 'string')
+    : [];
+  const suggestions = Array.isArray(metrics.suggestions)
+    ? metrics.suggestions.filter((suggestion): suggestion is string => typeof suggestion === 'string')
+    : [];
+
+  return {
+    id: value.id,
+    scriptId: value.scriptId,
+    scriptTitle: typeof value.scriptTitle === 'string' ? value.scriptTitle : 'Untitled Script',
+    startedAt: typeof value.startedAt === 'number' ? value.startedAt : Date.now(),
+    endedAt: typeof value.endedAt === 'number' ? value.endedAt : Date.now(),
+    transcriptEvents,
+    metrics: {
+      durationSeconds: typeof metrics.durationSeconds === 'number' ? metrics.durationSeconds : 0,
+      transcriptWordCount: typeof metrics.transcriptWordCount === 'number' ? metrics.transcriptWordCount : 0,
+      scriptWordCount: typeof metrics.scriptWordCount === 'number' ? metrics.scriptWordCount : 0,
+      wordsPerMinute: typeof metrics.wordsPerMinute === 'number' ? metrics.wordsPerMinute : null,
+      longPauseCount: typeof metrics.longPauseCount === 'number' ? metrics.longPauseCount : 0,
+      fillerWordCount: typeof metrics.fillerWordCount === 'number' ? metrics.fillerWordCount : 0,
+      scriptCoverage: typeof metrics.scriptCoverage === 'number' ? metrics.scriptCoverage : null,
+      completionPercent: typeof metrics.completionPercent === 'number' ? metrics.completionPercent : 0,
+      unavailableMetrics,
+      suggestions,
+    },
+  };
 }
 
 // Scripts
@@ -168,6 +226,34 @@ export function saveSettings(settings: Partial<AppSettings>): AppSettings {
   return updated;
 }
 
+// Rehearsal sessions
+export function getRehearsalSessions(scriptId?: string): RehearsalSession[] {
+  const sessions = safeParse<unknown[]>(localStorage.getItem(REHEARSAL_SESSIONS_KEY), [])
+    .map(normaliseRehearsalSession)
+    .filter((session): session is RehearsalSession => Boolean(session))
+    .sort((a, b) => b.endedAt - a.endedAt);
+
+  return scriptId ? sessions.filter(session => session.scriptId === scriptId) : sessions;
+}
+
+export function saveRehearsalSession(session: Omit<RehearsalSession, 'id'> & { id?: string }): RehearsalSession {
+  const sessions = getRehearsalSessions();
+  const nextSession: RehearsalSession = {
+    ...session,
+    id: session.id || generateId(),
+  };
+
+  const existingIndex = sessions.findIndex(existing => existing.id === nextSession.id);
+  if (existingIndex >= 0) {
+    sessions[existingIndex] = nextSession;
+  } else {
+    sessions.unshift(nextSession);
+  }
+
+  writeJson(REHEARSAL_SESSIONS_KEY, sessions);
+  return nextSession;
+}
+
 // Backup & Restore
 export function exportBackup(): string {
   return JSON.stringify({
@@ -177,6 +263,7 @@ export function exportBackup(): string {
       .map(normaliseRevision)
       .filter((revision): revision is ScriptRevision => Boolean(revision)),
     settings: getSettings(),
+    rehearsalSessions: getRehearsalSessions(),
     exportedAt: Date.now(),
   }, null, 2);
 }
@@ -195,11 +282,16 @@ export function importBackup(json: string): boolean {
     const revisions = Array.isArray(data.revisions)
       ? data.revisions.map(normaliseRevision).filter((revision): revision is ScriptRevision => Boolean(revision))
       : [];
+    const rehearsalSessions = Array.isArray(data.rehearsalSessions)
+      ? data.rehearsalSessions.map(normaliseRehearsalSession).filter((session): session is RehearsalSession => Boolean(session))
+      : [];
+    if (Array.isArray(data.rehearsalSessions) && rehearsalSessions.length !== data.rehearsalSessions.length) return false;
     const settings = normaliseSettings(data.settings);
 
     writeJson(SCRIPTS_KEY, scripts);
     writeJson(REVISIONS_KEY, revisions);
     writeJson(SETTINGS_KEY, settings);
+    writeJson(REHEARSAL_SESSIONS_KEY, rehearsalSessions);
     window.dispatchEvent(new Event('cuevora-settings-changed'));
     return true;
   } catch {
@@ -211,6 +303,7 @@ export function clearLocalData(): void {
   localStorage.removeItem(SCRIPTS_KEY);
   localStorage.removeItem(REVISIONS_KEY);
   localStorage.removeItem(SETTINGS_KEY);
+  localStorage.removeItem(REHEARSAL_SESSIONS_KEY);
   localStorage.setItem(STORAGE_VERSION_KEY, String(STORAGE_VERSION));
   window.dispatchEvent(new Event('cuevora-settings-changed'));
 }

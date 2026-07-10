@@ -15,6 +15,7 @@ import Home from "./pages/Home";
 import Editor from "./pages/Editor";
 import Player from "./pages/Player";
 import RecordMode from "./pages/RecordMode";
+import Rehearsal from "./pages/Rehearsal";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -67,6 +68,7 @@ const App = () => {
                 <Route path="/editor/:id" element={<ProtectedRoute><Editor /></ProtectedRoute>} />
                 <Route path="/player/:id" element={<ProtectedRoute><Player /></ProtectedRoute>} />
                 <Route path="/record/:id" element={<ProtectedRoute><RecordMode /></ProtectedRoute>} />
+                <Route path="/rehearsal/:id" element={<ProtectedRoute><Rehearsal /></ProtectedRoute>} />
                 <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
                 <Route path="*" element={<NotFound />} />
               </Routes>

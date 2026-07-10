@@ -24,6 +24,15 @@ cd android && ./gradlew test
 cd android && ./gradlew bundleRelease
 ```
 
+Release signing is required for a Play-uploadable `.aab`. Create `android/keystore.properties` locally from `android/keystore.properties.example`, or provide these environment variables in CI:
+
+- `CUEVORA_UPLOAD_STORE_FILE`
+- `CUEVORA_UPLOAD_STORE_PASSWORD`
+- `CUEVORA_UPLOAD_KEY_ALIAS`
+- `CUEVORA_UPLOAD_KEY_PASSWORD`
+
+Do not commit keystore files, `android/keystore.properties`, passwords or upload-key credentials.
+
 Release bundle path:
 
 ```text
@@ -65,6 +74,14 @@ android/app/build/outputs/bundle/release/app-release.aab
   - Account, Appearance, Teleprompter defaults, Recording and controls, Storage and backup, Privacy and legal, Feedback, Reset and About sections are present.
   - Export backup, import backup and clear local data work.
 
+## Claims Verification
+
+Before submitting store copy, screenshots or release notes, verify that every public claim matches implemented behavior:
+
+- OK to claim: offline-first script editing, local storage, smooth teleprompter playback, camera overlay, record mode, gestures, keyboard shortcuts, haptics, backup/restore and guest mode.
+- Do not claim yet: adaptive voice-follow scrolling, AI rehearsal coaching, cloud AI script writing, local speech-to-text, eye-contact coaching, producer remote control or cloud script sync.
+- If a screenshot, caption or release note mentions a future feature, remove it from the Play submission until the feature is implemented, tested and reflected in `PRIVACY_DATA_INVENTORY.md`.
+
 ## Store Assets
 
 - App icon: verify `playstore-icon-512.png` and generated Android mipmaps.
@@ -88,6 +105,9 @@ android/app/build/outputs/bundle/release/app-release.aab
   - Before public launch with account creation enabled, provide a public account deletion URL or in-app self-service deletion path that satisfies Google Play policy.
 - Passwordless email sign-in:
   - UI is prepared, but Firebase action-code URLs must be configured and tested before enabling this as a production sign-in method.
+- Firebase Android config:
+  - If Android Google sign-in or native Firebase services are enabled, download a fresh `google-services.json` for package `app.cuevora.teleprompter` and place it locally at `android/app/google-services.json`.
+  - Do not reuse configs for old package names such as `app.openprompt.teleprompter`.
 - Cloud sync:
   - Not implemented. Do not mention script sync in Play listing copy until a real sync service exists.
 
@@ -103,16 +123,27 @@ android/app/build/outputs/bundle/release/app-release.aab
   - Guest onboarding to script creation
   - Edit, auto-save, leave and return
   - Prompt playback with gestures and Bluetooth keyboard
+  - Rehearsal start/stop, unsupported speech fallback and saved report
+  - Adaptive scroll disabled-by-default state and fixed-speed fallback
+  - Accessibility profiles in Player, Record Mode and Rehearsal
+  - `docs/qa/accessibility-test-matrix.md` completed for TalkBack, Switch Access, Voice Access, keyboard, reduced motion and large-text checks
+  - Android Accessibility Scanner and Play pre-launch accessibility findings reviewed
   - Camera overlay permission denial and retry
   - Record mode permission denial, recording, preview and share
   - Backup export and restore
   - Clear local data
   - Firebase unavailable guest fallback
   - Google sign-in when Firebase Android config is present
+- Evidence to collect:
+  - Device model, Android version and screen size for each tester.
+  - Permission outcomes for camera, microphone and share/export.
+  - Any recording failures, playback stutter, offline issues or backup/restore errors.
+  - Quotes or testimonials only with tester permission.
 
 ## Known Limitations For First Release
 
 - Cloud script sync is not implemented and must not be claimed.
+- AI rehearsal coaching, local speech-to-text, eye-contact coaching and producer remote control are not implemented and must not be claimed.
 - Passwordless email sign-in UI is prepared but remains disabled until Firebase action-code URLs are configured.
 - Account deletion is a request path unless Firebase self-service deletion is added before enabling public account creation.
 - Android release signing is not configured in source control. Configure signing securely through Android Studio, Play App Signing or CI secrets.

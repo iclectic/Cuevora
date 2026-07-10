@@ -9,6 +9,7 @@ import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { resolveLegalUrl } from '@/lib/utils';
+import { AccessibilityProfileSelector } from '@/components/AccessibilityProfileSelector';
 import { ArrowLeft, Download, Upload, Shield, MessageSquare, LogOut, User, Sun, Moon, Monitor, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -151,6 +152,12 @@ const Settings = () => {
               ))}
             </div>
           </SettingRow>
+          <SettingRow label="Accessibility Profile">
+            <AccessibilityProfileSelector
+              value={settings.accessibilityProfile}
+              onChange={profile => update({ accessibilityProfile: profile })}
+            />
+          </SettingRow>
         </Section>
 
         {/* Defaults */}
@@ -244,6 +251,9 @@ const Settings = () => {
           </SettingRow>
           <SettingRow label="Voice Controls" inline>
             <Switch checked={settings.voiceControlsEnabled} onCheckedChange={v => update({ voiceControlsEnabled: v })} />
+          </SettingRow>
+          <SettingRow label="Adaptive Scroll" inline>
+            <Switch checked={settings.adaptiveScrollEnabled} onCheckedChange={v => update({ adaptiveScrollEnabled: v })} />
           </SettingRow>
         </Section>
 

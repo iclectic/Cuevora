@@ -23,6 +23,11 @@ import {
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
 import { Capacitor } from '@capacitor/core';
+import { usePromptPlayback } from '@/hooks/use-prompt-playback';
+import { useAccessibleShortcuts } from '@/hooks/use-accessible-shortcuts';
+import { applyProfileFontSize, applyProfileLineSpacing, getAccessibilityProfile } from '@/lib/accessibility-profiles';
+import { AccessibleStatus } from '@/components/AccessibleStatus';
+import { AccessibleControlsPanel } from '@/components/AccessibleControlsPanel';
 
 const formatDuration = (seconds: number) => {
   const m = Math.floor(seconds / 60).toString().padStart(2, '0');
@@ -36,7 +41,6 @@ const RecordMode = () => {
   const settings = getSettings();
   const script = id ? getScript(id) : null;
 
-  const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(settings.defaultSpeed);
   const [fontSize, setFontSize] = useState(Math.min(settings.defaultFontSize, 28));
   const [theme, setTheme] = useState<PlayerTheme>(settings.defaultTheme);
@@ -57,14 +61,21 @@ const RecordMode = () => {
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const animRef = useRef<number>();
-  const lastTimeRef = useRef<number>(0);
   const streamRef = useRef<MediaStream | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval>>();
 
   const currentTheme = PLAYER_THEMES[theme];
+  const accessibilityProfile = getAccessibilityProfile(settings.accessibilityProfile);
+  const displayFontSize = applyProfileFontSize(fontSize, accessibilityProfile);
+  const displayLineSpacing = applyProfileLineSpacing(1.5, accessibilityProfile);
+  const reducedMotionEnabled = accessibilityProfile.reducedMotion || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const statusMessage = recording
+    ? `Recording. Duration ${formatDuration(recordingDuration)}.`
+    : recordedVideoUrl
+      ? `Recording complete. Duration ${formatDuration(recordingDuration)}.`
+      : recordingError || cameraError || 'Record mode ready.';
 
   // Camera — request audio too so recordings have sound
   const startCamera = useCallback(async () => {
@@ -130,7 +141,28 @@ const RecordMode = () => {
     return () => { wakeLock?.release(); };
   }, []);
 
-  // Recording logic
+  const stopRecording = useCallback(() => {
+    void haptic('medium');
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+    mediaRecorderRef.current = null;
+    setRecording(false);
+
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = undefined;
+    }
+  }, []);
+
+  const playback = usePromptPlayback({
+    scrollRef,
+    speed,
+    onComplete: () => {
+      if (recording) stopRecording();
+    },
+  });
+
   const startRecording = useCallback(async () => {
     if (requestingMedia || recording) return;
     if (!window.MediaRecorder) {
@@ -203,31 +235,16 @@ const RecordMode = () => {
       }, 1000);
 
       // Also start the teleprompter scrolling
-      setPlaying(true);
+      playback.play();
     } catch (err) {
       console.error('Failed to start recording:', err);
       setRecordingError('Recording could not be started on this browser or device.');
-      setPlaying(false);
+      playback.pause();
       stopCamera();
     } finally {
       setRequestingMedia(false);
     }
-  }, [recordedVideoUrl, recording, requestingMedia, startCamera, stopCamera]);
-
-  const stopRecording = useCallback(() => {
-    void haptic('medium');
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
-    }
-    mediaRecorderRef.current = null;
-    setRecording(false);
-    setPlaying(false);
-
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = undefined;
-    }
-  }, []);
+  }, [playback, recordedVideoUrl, recording, requestingMedia, startCamera, stopCamera]);
 
   const handleBack = useCallback(() => {
     if (recording) {
@@ -239,9 +256,10 @@ const RecordMode = () => {
 
   const confirmLeave = useCallback(() => {
     stopRecording();
+    playback.pause();
     setShowLeaveDialog(false);
     navigate(-1);
-  }, [stopRecording, navigate]);
+  }, [playback, stopRecording, navigate]);
 
   // Clean up on unmount
   useEffect(() => {
@@ -318,38 +336,47 @@ const RecordMode = () => {
     setRecordedBlob(null);
   }, [recordedVideoUrl]);
 
-  // Scroll animation
-  const scrollStep = useCallback((timestamp: number) => {
-    if (!scrollRef.current) return;
-    if (lastTimeRef.current === 0) lastTimeRef.current = timestamp;
-    const delta = timestamp - lastTimeRef.current;
-    lastTimeRef.current = timestamp;
-    const pxPerSecond = speed * 20;
-    scrollRef.current.scrollTop += (pxPerSecond * delta) / 1000;
-    const el = scrollRef.current;
-    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 10) {
-      setPlaying(false);
-      // Auto-stop recording when script ends
-      if (recording) stopRecording();
-      return;
-    }
-    animRef.current = requestAnimationFrame(scrollStep);
-  }, [speed, recording, stopRecording]);
-
-  useEffect(() => {
-    if (playing) {
-      lastTimeRef.current = 0;
-      animRef.current = requestAnimationFrame(scrollStep);
-    } else {
-      if (animRef.current) cancelAnimationFrame(animRef.current);
-    }
-    return () => { if (animRef.current) cancelAnimationFrame(animRef.current); };
-  }, [playing, scrollStep]);
-
   const toggleCamera = () => {
     if (recording) return; // Don't switch camera while recording
     setFacingMode(f => f === 'user' ? 'environment' : 'user');
   };
+
+  useAccessibleShortcuts({
+    ' ': playback.toggle,
+    r: () => { if (!recording) void startRecording(); },
+    s: () => {
+      if (recording) {
+        stopRecording();
+        playback.pause();
+      }
+    },
+    ArrowLeft: () => playback.seekByPixels(-(speed * 100)),
+    ArrowRight: () => playback.seekByPixels(speed * 100),
+    Escape: handleBack,
+  });
+
+  const accessibleActions = [
+    {
+      id: 'record-primary',
+      label: recording ? 'Stop Recording' : 'Start Recording',
+      description: recording ? 'Finish this take' : 'Start camera and microphone recording',
+      pressed: recording,
+      disabled: requestingMedia,
+      onAction: recording ? () => { stopRecording(); playback.pause(); } : startRecording,
+    },
+    {
+      id: 'record-preview',
+      label: playback.playing ? 'Pause Preview' : 'Preview Scroll',
+      description: 'Preview prompt movement without recording',
+      pressed: playback.playing,
+      disabled: recording || requestingMedia,
+      onAction: playback.toggle,
+    },
+    { id: 'record-rewind', label: 'Rewind', description: 'Move prompt backward', onAction: () => playback.seekByPixels(-(speed * 100)) },
+    { id: 'record-forward', label: 'Forward', description: 'Move prompt forward', onAction: () => playback.seekByPixels(speed * 100) },
+    { id: 'record-mirror', label: 'Mirror', description: 'Toggle mirrored prompt', pressed: mirrored, onAction: () => setMirrored(!mirrored) },
+    { id: 'record-split', label: 'Split View', description: 'Toggle camera and prompt split view', pressed: splitView, onAction: () => setSplitView(!splitView) },
+  ];
 
   if (!script) {
     return (
@@ -367,7 +394,8 @@ const RecordMode = () => {
   const lines = script.content.split('\n');
 
   return (
-    <div className="relative flex min-h-screen flex-col bg-black overflow-hidden">
+    <div className="relative flex min-h-screen flex-col bg-black overflow-hidden" role="main" aria-label={`Record ${script.title}`}>
+      <AccessibleStatus message={statusMessage} assertive={Boolean(recordingError || cameraError)} />
       {/* Camera preview */}
       <div className={`${splitView ? 'h-1/2' : 'absolute inset-0'} z-0 bg-black`}>
         <video
@@ -375,6 +403,7 @@ const RecordMode = () => {
           autoPlay
           playsInline
           muted
+          aria-hidden="true"
           className="h-full w-full object-cover"
           style={{ transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' }}
         />
@@ -395,8 +424,8 @@ const RecordMode = () => {
 
       {/* Recording indicator */}
       {recording && (
-        <div className="absolute top-14 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-black/70 rounded-full px-4 py-1.5">
-          <div className="h-3 w-3 rounded-full bg-red-500 animate-pulse" />
+        <div className="absolute top-14 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-black/70 rounded-full px-4 py-1.5" aria-hidden="true">
+          <div className={`h-3 w-3 rounded-full bg-red-500 ${reducedMotionEnabled ? '' : 'animate-pulse'}`} />
           <span className="text-white text-sm font-mono font-medium">
             Recording... {formatDuration(recordingDuration)}
           </span>
@@ -407,6 +436,8 @@ const RecordMode = () => {
       <div
         ref={scrollRef}
         className={`${splitView ? 'h-1/2' : 'absolute inset-0'} z-10 overflow-y-auto`}
+        role="region"
+        aria-label="Recording prompt text"
         style={{
           backgroundColor: splitView ? currentTheme.bg : `${currentTheme.bg}${cameraActive ? '66' : '99'}`,
           color: currentTheme.fg,
@@ -414,9 +445,10 @@ const RecordMode = () => {
         }}
       >
         <div
+          className={accessibilityProfile.className}
           style={{
-            fontSize: `${fontSize}px`,
-            lineHeight: 1.5,
+            fontSize: `${displayFontSize}px`,
+            lineHeight: displayLineSpacing,
             padding: splitView ? '1rem 1.5rem' : '4rem 2rem 50vh 2rem',
             paddingTop: splitView ? '1rem' : '30vh',
             paddingBottom: '60vh',
@@ -430,8 +462,8 @@ const RecordMode = () => {
 
       {/* Recorded video preview overlay */}
       {recordedVideoUrl && (
-        <div className="absolute inset-0 z-[60] bg-black/90 flex flex-col items-center justify-center p-6">
-          <p className="text-white text-lg font-medium mb-4">Recording Complete</p>
+        <div className="absolute inset-0 z-[60] bg-black/90 flex flex-col items-center justify-center p-6" role="dialog" aria-modal="true" aria-labelledby="recording-complete-title">
+          <p id="recording-complete-title" className="text-white text-lg font-medium mb-4">Recording Complete</p>
           <video
             src={recordedVideoUrl}
             controls
@@ -492,6 +524,11 @@ const RecordMode = () => {
 
       {/* Bottom controls */}
       <div className="absolute bottom-0 left-0 right-0 z-50 bg-black/60 safe-area-padding">
+        {(accessibilityProfile.simplifiedControls || accessibilityProfile.highContrast) && (
+          <div className="px-4 pt-3">
+            <AccessibleControlsPanel title="Accessible recording controls" actions={accessibleActions} />
+          </div>
+        )}
         <div className="flex items-center gap-1 px-4 py-1">
           <Type className="h-3 w-3 text-white/60" />
           <Slider
@@ -506,7 +543,7 @@ const RecordMode = () => {
         </div>
         <div className="flex items-center justify-center gap-4 px-6 py-3">
           <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full text-white" aria-label="Rewind"
-            onClick={() => { if (scrollRef.current) scrollRef.current.scrollTop = Math.max(0, scrollRef.current.scrollTop - speed * 100); }}>
+            onClick={() => playback.seekByPixels(-(speed * 100))}>
             <SkipBack className="h-5 w-5" />
           </Button>
 
@@ -514,18 +551,21 @@ const RecordMode = () => {
           <Button
             size="sm"
             className="h-11 rounded-full bg-white/20 px-4 text-white"
-            aria-label={playing ? 'Pause preview scroll' : 'Preview scroll'}
-            onClick={() => setPlaying(!playing)}
+            aria-label={playback.playing ? 'Pause preview scroll' : 'Preview scroll'}
+            onClick={playback.toggle}
             disabled={recording || requestingMedia}
           >
-            {playing ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5 ml-0.5" />}
-            <span className="ml-1 hidden sm:inline">{playing ? 'Pause Preview' : 'Preview Scroll'}</span>
+            {playback.playing ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5 ml-0.5" />}
+            <span className="ml-1 hidden sm:inline">{playback.playing ? 'Pause Preview' : 'Preview Scroll'}</span>
           </Button>
 
           {/* Primary recording action */}
           {recording ? (
             <Button
-              onClick={stopRecording}
+              onClick={() => {
+                stopRecording();
+                playback.pause();
+              }}
               className="h-14 rounded-full bg-red-600 px-6 text-white hover:bg-red-700"
               aria-label="Stop recording"
             >
@@ -543,7 +583,7 @@ const RecordMode = () => {
           )}
 
           <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full text-white" aria-label="Forward"
-            onClick={() => { if (scrollRef.current) scrollRef.current.scrollTop += speed * 100; }}>
+            onClick={() => playback.seekByPixels(speed * 100)}>
             <SkipForward className="h-5 w-5" />
           </Button>
         </div>

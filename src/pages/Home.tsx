@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { getScripts, deleteScript, restoreScript, getWordCount } from '@/lib/storage';
 import { haptic } from '@/lib/haptics';
 import { Script } from '@/types/script';
-import { Plus, Search, Play, MoreVertical, Trash2, Edit, FileText, RefreshCw, LayoutList, ListFilter } from 'lucide-react';
+import { Plus, Search, Play, MoreVertical, Trash2, Edit, FileText, RefreshCw, LayoutList, ListFilter, Mic } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -17,6 +17,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { AccessibleStatus } from '@/components/AccessibleStatus';
 
 type SortMode = 'updated' | 'created' | 'az' | 'longest';
 type ViewMode = 'detailed' | 'compact';
@@ -52,6 +53,7 @@ const Home = () => {
       return b.updatedAt - a.updatedAt;
     });
   }, [scripts, search, selectedTag, sortMode]);
+  const statusMessage = `${filtered.length} ${filtered.length === 1 ? 'script' : 'scripts'} shown${selectedTag ? ` for tag ${selectedTag}` : ''}${search ? ` matching ${search}` : ''}.`;
 
   const refreshScripts = async () => {
     setScripts(getScripts());
@@ -106,6 +108,7 @@ const Home = () => {
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
+      <AccessibleStatus message={statusMessage} />
       {/* Header */}
       <div className="px-5 pb-2" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top, 0px))' }}>
         <div className="flex items-center justify-between mb-1">
@@ -120,6 +123,7 @@ const Home = () => {
         <div className="relative mb-3">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
+            aria-label="Search scripts"
             placeholder="Search scripts..."
             value={search}
             onChange={e => setSearch(e.target.value)}
@@ -169,8 +173,17 @@ const Home = () => {
           <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
             <Badge
               variant={selectedTag === null ? 'default' : 'outline'}
+              role="button"
+              tabIndex={0}
+              aria-pressed={selectedTag === null}
               className="cursor-pointer shrink-0"
               onClick={() => setSelectedTag(null)}
+              onKeyDown={event => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  setSelectedTag(null);
+                }
+              }}
             >
               All
             </Badge>
@@ -178,8 +191,17 @@ const Home = () => {
               <Badge
                 key={tag}
                 variant={selectedTag === tag ? 'default' : 'outline'}
+                role="button"
+                tabIndex={0}
+                aria-pressed={selectedTag === tag}
                 className="cursor-pointer shrink-0"
                 onClick={() => setSelectedTag(selectedTag === tag ? null : tag)}
+                onKeyDown={event => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    setSelectedTag(selectedTag === tag ? null : tag);
+                  }
+                }}
               >
                 {tag}
               </Badge>
@@ -240,7 +262,16 @@ const Home = () => {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.03 }}
                   className={`flex items-center gap-3 rounded-xl bg-card border border-border/50 cursor-pointer active:scale-[0.98] transition-transform ${viewMode === 'compact' ? 'p-3' : 'p-4'}`}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Edit ${script.title}. ${getWordCount(script.content)} words. Updated ${formatDate(script.updatedAt)}.`}
                   onClick={() => navigate(`/editor/${script.id}`)}
+                  onKeyDown={event => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      navigate(`/editor/${script.id}`);
+                    }
+                  }}
                 >
                   <div className="flex-1 min-w-0">
                     <h3 className="font-medium text-foreground truncate">{script.title}</h3>
@@ -279,6 +310,9 @@ const Home = () => {
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => navigate(`/editor/${script.id}`)}>
                           <Edit className="h-4 w-4 mr-2" /> Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => navigate(`/rehearsal/${script.id}`)}>
+                          <Mic className="h-4 w-4 mr-2" /> Rehearse
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           className="text-destructive"
