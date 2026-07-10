@@ -22,5 +22,19 @@ export default defineConfig(({ mode }) => {
         "@": path.resolve(__dirname, "./src"),
       },
     },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (!id.includes("node_modules")) return undefined;
+            if (id.includes("@capacitor")) return "capacitor";
+            if (id.includes("firebase")) return "firebase";
+            if (id.includes("@radix-ui") || id.includes("lucide-react") || id.includes("framer-motion")) return "ui-vendor";
+            if (id.includes("react") || id.includes("@tanstack")) return "react-vendor";
+            return "vendor";
+          },
+        },
+      },
+    },
   };
 });

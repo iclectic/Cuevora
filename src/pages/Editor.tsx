@@ -14,6 +14,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
+import { AccessibleStatus } from '@/components/AccessibleStatus';
 
 const Editor = () => {
   const { id } = useParams<{ id: string }>();
@@ -168,6 +169,7 @@ const Editor = () => {
 
   return (
     <div className="flex min-h-screen flex-col bg-background safe-area-padding">
+      <AccessibleStatus message={saveStatusLabel} assertive={saveStatus === 'error'} />
       {/* Header */}
       <div className="flex items-center gap-2 px-4 pb-2" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top, 0px))' }}>
         <Button variant="ghost" size="icon" className="touch-target text-white" onClick={goBack} aria-label="Back to scripts">
@@ -183,6 +185,7 @@ const Editor = () => {
       {/* Title */}
       <div className="px-5">
         <Input
+          aria-label="Script title"
           value={title}
           onChange={e => handleTitleChange(e.target.value)}
           placeholder="Script title..."
@@ -199,6 +202,7 @@ const Editor = () => {
         ))}
         <div className="flex items-center gap-1">
           <Input
+            aria-label="Add tag"
             value={newTag}
             onChange={e => setNewTag(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && addTag()}
@@ -211,6 +215,7 @@ const Editor = () => {
       {/* Content */}
       <div className="flex-1 px-5 py-2">
         <Textarea
+          aria-label="Script content"
           value={content}
           onChange={e => handleContentChange(e.target.value)}
           placeholder="Paste or type your script here..."
@@ -268,8 +273,17 @@ const Editor = () => {
                 revisions.map(rev => (
                   <div
                     key={rev.id}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Restore revision from ${new Date(rev.timestamp).toLocaleString()}`}
                     className="p-3 rounded-lg border border-border cursor-pointer hover:bg-accent/50 transition-colors"
                     onClick={() => restoreRevision(rev)}
+                    onKeyDown={event => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        restoreRevision(rev);
+                      }
+                    }}
                   >
                     <p className="text-xs text-muted-foreground mb-1">
                       {new Date(rev.timestamp).toLocaleString()}

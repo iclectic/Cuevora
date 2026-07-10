@@ -19,6 +19,7 @@ export interface ScriptRevision {
 }
 
 export type ColorMode = 'system' | 'light' | 'dark';
+export type AccessibilityProfile = 'default' | 'dyslexia' | 'low-vision' | 'high-contrast' | 'calm-focus' | 'caption-first' | 'simple-controls';
 
 export interface AppSettings {
   defaultTheme: PlayerTheme;
@@ -36,6 +37,8 @@ export interface AppSettings {
   hapticsEnabled: boolean;
   gestureControlsEnabled: boolean;
   voiceControlsEnabled: boolean;
+  adaptiveScrollEnabled: boolean;
+  accessibilityProfile: AccessibilityProfile;
   recordingQuality: 'standard' | 'high';
 }
 
@@ -64,5 +67,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   hapticsEnabled: true,
   gestureControlsEnabled: true,
   voiceControlsEnabled: false,
+  adaptiveScrollEnabled: false,
+  accessibilityProfile: 'default',
   recordingQuality: 'high',
 };

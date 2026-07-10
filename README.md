@@ -51,6 +51,10 @@ This branch includes a Play Store readiness and UX hardening pass focused on mak
 - Login now keeps guest mode first-class, hides Apple sign-in on Android, uses native-friendly redirect sign-in on Android and exposes a prepared passwordless email sign-in path with a clear Firebase TODO.
 - Settings now has dedicated sections for Account, Appearance, Teleprompter defaults, Recording and controls, Storage and backup, Privacy and legal, Feedback, Reset app data and About Cuevora.
 - Storage now has safer parsing, backup validation, restore support, reset support and tests for corrupted data paths.
+- Rehearsal now supports local reports with transcript-derived metrics where speech recognition is available.
+- Adaptive scroll can follow recent voice cadence with fixed-speed fallback and manual override.
+- Accessibility profiles adjust prompting presentation for low vision, dyslexia-friendly reading, calm focus, captions and simpler controls.
+- Accessibility readiness is tracked in `docs/qa/accessibility-test-matrix.md`, covering TalkBack, Switch Access, Voice Access, keyboard, reduced motion and large-text checks.
 - Release documentation has been added for Play Store readiness, privacy/data inventory and store listing copy.
 
 ## Screenshots
@@ -87,6 +91,7 @@ This branch includes a Play Store readiness and UX hardening pass focused on mak
 - **4 player themes** — Dark, Light, Studio, High Contrast — selectable during playback
 - **Typography controls** — Font size (16–72 px), line spacing (1.0–3.0×), real-time adjustment via slider or pinch gesture
 - **Progress telemetry** — Scroll progress bar, elapsed timer, percentage, and estimated time remaining — all computed from word count and WPM setting
+- **Adaptive scroll option** — Voice-follow scrolling can use recent speech cadence where supported, with fixed-speed fallback and manual override
 - **Safe recovery states** — Missing, deleted or corrupted scripts show useful recovery actions instead of blank screens
 
 ### Multi-Modal Input
@@ -132,6 +137,8 @@ This branch includes a Play Store readiness and UX hardening pass focused on mak
 - **Teleprompter defaults** — Default speed, font size, line spacing, theme, countdown, mirror mode and focus line
 - **Input preferences** — Haptics, gesture controls and voice controls can be toggled
 - **Storage tools** — Export all local data, import validated backups and clear local app data
+- **Rehearsal reports** — Saved local practice reports include transcript-derived pacing, pause, filler-word and completion metrics where speech recognition is supported
+- **Accessibility profiles** — Named profiles adjust prompting presentation for low vision, dyslexia-friendly reading, calm focus, captions and simpler controls
 - **Privacy and legal** — Privacy policy, terms, local-data explanation and app version/build details
 
 ### Theming
@@ -163,6 +170,13 @@ Current native configuration:
 Release support files:
 
 - `PLAY_STORE_RELEASE_CHECKLIST.md` — Play Console, policy, testing and release checklist
+- `docs/qa/android-closed-test-matrix.md` — Device and journey matrix for closed testing
+- `docs/qa/accessibility-test-matrix.md` — Assistive-technology matrix for accessibility-readiness checks
+- `docs/qa/performance-notes.md` — Bundle and runtime performance gates
+- `docs/technical/60fps-offline-teleprompter.md` — Playback architecture notes
+- `docs/technical/adaptive-rehearsal-coach.md` — Rehearsal and adaptive-scroll architecture notes
+- `docs/technical/privacy-first-architecture.md` — Privacy boundary notes
+- `docs/technical/demo-script.md` — Demo capture script
 - `PRIVACY_DATA_INVENTORY.md` — Local data, Firebase Auth and recording data inventory
 - `STORE_LISTING_DRAFT.md` — Draft short description, full description, feature list and release notes
 
@@ -396,6 +410,8 @@ npm run cap:open:android
 ```
 
 #### Signed Release Build (Play Store)
+
+Create `android/keystore.properties` locally from `android/keystore.properties.example`, or provide the equivalent `CUEVORA_UPLOAD_*` environment variables in CI. Do not commit keystores, passwords, `android/keystore.properties` or upload-key credentials.
 
 ```bash
 npm run build
