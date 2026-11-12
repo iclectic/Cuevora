@@ -1,7 +1,7 @@
 import { RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 const SPEED_TO_PIXELS_PER_SECOND = 20;
-const END_THRESHOLD_PX = 10;
+const END_THRESHOLD_PX = 1;
 
 type ScrollContainerRef = RefObject<HTMLElement>;
 
@@ -39,7 +39,10 @@ export function usePromptPlayback({
   const [scrollProgress, setScrollProgress] = useState(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const animRef = useRef<number>();
-  const lastTimeRef = useRef<number>(0);
+  const lastTimeRef = useRef<number | null>(null);
+  const remainderRef = useRef(0);
+  const speedRef = useRef(speed);
+  speedRef.current = speed;
   const onCompleteRef = useRef(onComplete);
 
   onCompleteRef.current = onComplete;
@@ -49,6 +52,12 @@ export function usePromptPlayback({
     const interval = setInterval(() => setElapsedSeconds(s => s + 1), 1000);
     return () => clearInterval(interval);
   }, [playing]);
+
+  useEffect(() => {
+    const resetFrameTime = () => { lastTimeRef.current = null; };
+    document.addEventListener('visibilitychange', resetFrameTime);
+    return () => document.removeEventListener('visibilitychange', resetFrameTime);
+  }, []);
 
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;
@@ -60,26 +69,31 @@ export function usePromptPlayback({
     const el = scrollRef.current;
     if (!el) return;
 
-    if (lastTimeRef.current === 0) lastTimeRef.current = timestamp;
+    if (lastTimeRef.current === null) lastTimeRef.current = timestamp;
     const delta = timestamp - lastTimeRef.current;
     lastTimeRef.current = timestamp;
 
-    const pxPerSecond = speed * SPEED_TO_PIXELS_PER_SECOND;
-    el.scrollTop += (pxPerSecond * delta) / 1000;
+    const pxPerSecond = speedRef.current * SPEED_TO_PIXELS_PER_SECOND;
+    const before = el.scrollTop;
+    const movement = (pxPerSecond * delta) / 1000 + remainderRef.current;
+    el.scrollTop = before + movement;
+    remainderRef.current = movement - (el.scrollTop - before);
     setScrollProgress(getScrollProgress(el));
 
-    if (el.scrollTop + el.clientHeight >= el.scrollHeight - END_THRESHOLD_PX) {
+    if (el.scrollHeight > el.clientHeight && el.scrollTop + el.clientHeight >= el.scrollHeight - END_THRESHOLD_PX) {
+      el.scrollTop = el.scrollHeight - el.clientHeight;
+      setScrollProgress(1);
       setPlaying(false);
       onCompleteRef.current?.();
       return;
     }
 
     animRef.current = requestAnimationFrame(scrollStep);
-  }, [scrollRef, speed]);
+  }, [scrollRef]);
 
   useEffect(() => {
     if (playing) {
-      lastTimeRef.current = 0;
+      lastTimeRef.current = null;
       animRef.current = requestAnimationFrame(scrollStep);
     } else if (animRef.current) {
       cancelAnimationFrame(animRef.current);
@@ -98,6 +112,7 @@ export function usePromptPlayback({
     const el = scrollRef.current;
     if (el) el.scrollTop = 0;
     setPlaying(false);
+    remainderRef.current = 0;
     setElapsedSeconds(0);
     setScrollProgress(0);
   }, [scrollRef]);

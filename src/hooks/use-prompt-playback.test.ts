@@ -104,3 +104,21 @@ describe('usePromptPlayback', () => {
     expect(onComplete).toHaveBeenCalledOnce();
   });
 });
+
+describe('playback boundaries and speed', () => {
+  it('uses the latest speed without restarting the animation', () => {
+    let callback: FrameRequestCallback = () => {};
+    const request = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(cb => { callback = cb; return 1; });
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {});
+    const scrollRef = { current: createScrollElement() } as RefObject<HTMLDivElement>;
+    const { result, rerender, unmount } = renderHook(({ speed }) => usePromptPlayback({ scrollRef, speed }), { initialProps: { speed: 1 } });
+    act(() => result.current.play());
+    act(() => callback(1000));
+    rerender({ speed: 3 });
+    act(() => callback(2000));
+    expect(scrollRef.current.scrollTop).toBe(60);
+    expect(request).toHaveBeenCalledTimes(3);
+    unmount();
+    vi.restoreAllMocks();
+  });
+});

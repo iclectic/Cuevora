@@ -15,7 +15,7 @@ const Login = () => {
   const privacyUrl = resolveLegalUrl(import.meta.env.VITE_PRIVACY_URL, 'privacy.html');
   const termsUrl = resolveLegalUrl(import.meta.env.VITE_TERMS_URL, 'terms.html');
   const authMessage = firebaseAvailable
-    ? 'Sign in to sync your scripts across devices, or continue as a guest.'
+    ? 'Sign in or continue without an account.'
     : 'Cuevora works offline. Continue locally without creating an account.';
 
   useEffect(() => {
@@ -120,7 +120,7 @@ const Login = () => {
 
         {!firebaseAvailable && (
           <div className="rounded-lg bg-muted/50 border border-border px-4 py-3 text-sm text-muted-foreground text-center">
-            Account sync is disabled until Firebase is configured.
+            Create and save scripts directly on your device, and use the teleprompter whenever you need it.
           </div>
         )}
 
