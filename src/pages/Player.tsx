@@ -14,6 +14,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { useVoiceControl, VoiceCommand } from '@/hooks/use-voice-control';
 import { useGestureControls } from '@/hooks/use-gesture-controls';
+import { usePromptPlayback } from '@/hooks/use-prompt-playback';
 
 const SPEED_PRESETS = [
   { label: 'Slow', value: 2 },
@@ -28,7 +29,6 @@ const Player = () => {
   const settings = getSettings();
   const script = id ? getScript(id) : null;
 
-  const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(settings.defaultSpeed);
   const [fontSize, setFontSize] = useState(settings.defaultFontSize);
   const [lineSpacing, setLineSpacing] = useState(settings.defaultLineSpacing);
@@ -38,7 +38,6 @@ const Player = () => {
   const [countdown, setCountdown] = useState<number | null>(null);
   const [focusLine, setFocusLine] = useState(settings.focusLineEnabled);
   const [showPanel, setShowPanel] = useState<'none' | 'speed' | 'font' | 'theme'>('none');
-  const [scrollProgress, setScrollProgress] = useState(0);
   const [voiceEnabled, setVoiceEnabled] = useState(settings.voiceControlsEnabled);
   const [gesturesEnabled, setGesturesEnabled] = useState(settings.gestureControlsEnabled);
   const [showGestureGuide, setShowGestureGuide] = useState(() => {
@@ -48,7 +47,6 @@ const Player = () => {
       return true;
     }
   });
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   // Camera state
   const [cameraOn, setCameraOn] = useState(false);
@@ -57,10 +55,9 @@ const Player = () => {
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const animRef = useRef<number>();
-  const lastTimeRef = useRef<number>(0);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const { playing, scrollProgress, elapsedSeconds, play, pause, reset, jumpToEnd: playbackJumpToEnd, seekByPixels, handleScroll } = usePromptPlayback({ scrollRef, speed });
 
   const currentTheme = PLAYER_THEMES[theme];
   const reduceMotion = useMemo(
@@ -79,13 +76,6 @@ const Player = () => {
     return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
   }, [totalReadTimeSec, scrollProgress]);
 
-  // Elapsed timer
-  useEffect(() => {
-    if (!playing) return;
-    const interval = setInterval(() => setElapsedSeconds(s => s + 1), 1000);
-    return () => clearInterval(interval);
-  }, [playing]);
-
   const formatElapsed = (s: number) => {
     const mins = Math.floor(s / 60);
     const secs = s % 60;
@@ -103,119 +93,72 @@ const Player = () => {
     return () => { wakeLock?.release(); };
   }, [settings.keepScreenAwake]);
 
-  // Smooth scroll animation
-  const scrollStep = useCallback((timestamp: number) => {
-    if (!scrollRef.current) return;
-    if (lastTimeRef.current === 0) lastTimeRef.current = timestamp;
-    const delta = timestamp - lastTimeRef.current;
-    lastTimeRef.current = timestamp;
-    const pxPerSecond = speed * 20;
-    const scrollAmount = (pxPerSecond * delta) / 1000;
-    scrollRef.current.scrollTop += scrollAmount;
-
-    // Update progress
-    const el = scrollRef.current;
-    const maxScroll = el.scrollHeight - el.clientHeight;
-    if (maxScroll > 0) {
-      setScrollProgress(el.scrollTop / maxScroll);
-    }
-
-    // Check if reached end
-    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 10) {
-      setPlaying(false);
-      return;
-    }
-
-    animRef.current = requestAnimationFrame(scrollStep);
-  }, [speed]);
-
-  useEffect(() => {
-    if (playing) {
-      lastTimeRef.current = 0;
-      animRef.current = requestAnimationFrame(scrollStep);
-    } else {
-      if (animRef.current) cancelAnimationFrame(animRef.current);
-    }
-    return () => { if (animRef.current) cancelAnimationFrame(animRef.current); };
-  }, [playing, scrollStep]);
-
-  // Track scroll progress on manual scroll too
-  const handleScroll = useCallback(() => {
-    if (!scrollRef.current) return;
-    const el = scrollRef.current;
-    const maxScroll = el.scrollHeight - el.clientHeight;
-    if (maxScroll > 0) {
-      setScrollProgress(el.scrollTop / maxScroll);
-    }
-  }, []);
-
   // Countdown
   const startCountdown = (secs: number) => {
-    setCountdown(secs);
+    pause();
+    setCountdown(Math.max(0, secs));
   };
 
   useEffect(() => {
     if (countdown === null) return;
     if (countdown === 0) {
       setCountdown(null);
-      setPlaying(true);
+      play();
       return;
     }
     const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
     return () => clearTimeout(timer);
-  }, [countdown]);
+  }, [countdown, play]);
 
   const rewind = useCallback(() => {
-    if (!scrollRef.current) return;
-    const pxPerSecond = speed * 20;
-    scrollRef.current.scrollTop = Math.max(0, scrollRef.current.scrollTop - pxPerSecond * 5);
+    seekByPixels(-speed * 20 * 5);
     void haptic('light');
-  }, [speed]);
+  }, [speed, seekByPixels]);
 
   const forward = useCallback(() => {
-    if (!scrollRef.current) return;
-    const pxPerSecond = speed * 20;
-    scrollRef.current.scrollTop += pxPerSecond * 5;
+    seekByPixels(speed * 20 * 5);
     void haptic('light');
-  }, [speed]);
+  }, [speed, seekByPixels]);
 
   const resetScroll = useCallback(() => {
-    if (!scrollRef.current) return;
-    scrollRef.current.scrollTop = 0;
-    setPlaying(false);
-    setElapsedSeconds(0);
-    setScrollProgress(0);
+    setCountdown(null);
+    reset();
     void haptic('medium');
-  }, []);
+  }, [reset]);
 
   const jumpToEnd = useCallback(() => {
-    if (!scrollRef.current) return;
-    scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    setScrollProgress(1);
-    setPlaying(false);
+    setCountdown(null);
+    playbackJumpToEnd();
     void haptic('selection');
-  }, []);
+  }, [playbackJumpToEnd]);
 
   const togglePlay = useCallback(() => {
     void haptic('medium');
-    if (!playing && scrollRef.current?.scrollTop === 0) {
-      startCountdown(settings.countdownDuration);
+    if (countdown !== null) {
+      setCountdown(null);
+    } else if (playing) {
+      pause();
+    } else if (scrollProgress >= 1) {
+      reset();
+      setCountdown(settings.countdownDuration);
+    } else if (scrollRef.current?.scrollTop === 0 && elapsedSeconds === 0) {
+      setCountdown(settings.countdownDuration);
     } else {
-      setPlaying(p => !p);
+      play();
     }
-  }, [playing, settings.countdownDuration]);
+  }, [countdown, playing, scrollProgress, reset, settings.countdownDuration, elapsedSeconds, pause, play]);
 
   // Voice control
   const handleVoiceCommand = useCallback((cmd: VoiceCommand) => {
     switch (cmd) {
-      case 'play': setPlaying(true); break;
-      case 'pause': setPlaying(false); break;
-      case 'stop': setPlaying(false); break;
+      case 'play': setCountdown(null); play(); break;
+      case 'pause': setCountdown(null); pause(); break;
+      case 'stop': setCountdown(null); pause(); break;
       case 'faster': setSpeed(s => Math.min(10, s + 1)); void haptic('selection'); break;
       case 'slower': setSpeed(s => Math.max(1, s - 1)); void haptic('selection'); break;
       case 'reset': resetScroll(); break;
     }
-  }, [resetScroll]);
+  }, [resetScroll, play, pause]);
 
   const voice = useVoiceControl({
     onCommand: handleVoiceCommand,
@@ -235,7 +178,7 @@ const Player = () => {
   // Gesture controls
   useGestureControls({
     elementRef: containerRef,
-    enabled: gesturesEnabled,
+    enabled: gesturesEnabled && !showGestureGuide && countdown === null && !cameraError,
     onTapCenter: () => setShowControls(true),
     onTapLeft: rewind,
     onTapRight: forward,
@@ -303,6 +246,7 @@ const Player = () => {
   // Keyboard shortcuts
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
+      if (showGestureGuide) return;
       switch (e.key) {
         case ' ':
           e.preventDefault();
@@ -344,7 +288,7 @@ const Player = () => {
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [togglePlay, rewind, forward, resetScroll, navigate]);
+  }, [togglePlay, rewind, forward, resetScroll, navigate, showGestureGuide]);
 
   if (!script) {
     return (
@@ -366,7 +310,7 @@ const Player = () => {
     <div
       ref={containerRef}
       className="relative flex h-screen flex-col overflow-hidden select-none"
-      style={{ backgroundColor: currentTheme.bg, color: currentTheme.fg }}
+      style={{ backgroundColor: currentTheme.bg, color: currentTheme.fg, height: '100dvh' }}
     >
       {/* Camera preview (behind everything) */}
       {cameraOn && (
@@ -559,7 +503,8 @@ const Player = () => {
             fontSize: `${fontSize}px`,
             lineHeight: lineSpacing,
             paddingTop: 'clamp(1rem, 4vh, 2.5rem)',
-            paddingBottom: '60vh',
+            paddingBottom: '100vh',
+            minHeight: 'calc(100% + 1px)',
           }}
         >
           {lines.map((line, i) => (
@@ -582,11 +527,14 @@ const Player = () => {
             initial={reduceMotion ? false : { opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={reduceMotion ? undefined : { opacity: 0 }}
-            className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-black/75 px-6 pb-6"
-            style={{ paddingTop: 'calc(5rem + env(safe-area-inset-top, 0px))' }}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="gesture-guide-title"
+            className="fixed inset-0 z-[70] flex overflow-y-auto bg-black/75 px-4"
+            style={{ paddingTop: 'max(1rem, env(safe-area-inset-top, 0px))', paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 0px))' }}
           >
-            <div className="w-full max-w-sm rounded-2xl border border-white/15 bg-black/90 p-5 text-white shadow-2xl">
-              <h2 className="text-lg font-semibold">Gesture guide</h2>
+            <div className="m-auto w-full max-w-sm rounded-2xl border border-white/15 bg-black/90 p-5 text-white shadow-2xl">
+              <h2 id="gesture-guide-title" className="text-lg font-semibold">Gesture guide</h2>
               <ul className="mt-3 space-y-2 text-sm text-white/75">
                 <li>Tap centre: show or hide controls</li>
                 <li>Tap left or right: rewind or forward</li>
@@ -598,7 +546,7 @@ const Player = () => {
               <Button
                 className="mt-5 w-full"
                 onClick={() => {
-                  localStorage.setItem('cuevora_player_gesture_guide_seen', 'true');
+                  try { localStorage.setItem('cuevora_player_gesture_guide_seen', 'true'); } catch { /* Storage may be unavailable. */ }
                   setShowGestureGuide(false);
                   void haptic('light');
                 }}

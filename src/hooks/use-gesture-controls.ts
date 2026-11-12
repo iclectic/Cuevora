@@ -168,6 +168,9 @@ export function useGestureControls({
 
     return () => {
       if (singleTapTimeout.current) clearTimeout(singleTapTimeout.current);
+      singleTapTimeout.current = null;
+      touchState.current = null;
+      lastTapTime.current = 0;
       el.removeEventListener('touchstart', handleTouchStart);
       el.removeEventListener('touchend', handleTouchEnd);
       el.removeEventListener('touchmove', handleTouchMove);
